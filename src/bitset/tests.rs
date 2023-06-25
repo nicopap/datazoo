@@ -204,3 +204,15 @@ fn disable_range() {
     assert!(bitset.bit(64));
     assert!(bitset.bit(73));
 }
+#[test]
+fn from_all_bits() {
+    let bits = blocks();
+    let ones = Ones::from_all_bits(bits);
+
+    assert_eq!(Bitset(bits.0.to_vec()), ones.collect());
+
+    let bits = Bitset([]);
+    let ones = Ones::from_all_bits(bits);
+
+    assert_eq!(Bitset(bits.0.to_vec()), ones.collect());
+}

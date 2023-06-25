@@ -24,7 +24,8 @@ impl BlockT for u32 {
 /// # Usage
 ///
 /// `Bitset` is parametrized on the storage type, to let you chose whether
-/// this needs to be a reference, a `Box`, a `Vec` etc.
+/// this needs to be a reference, a `Box`, a `Vec`, or even a 3rd party slice
+/// type such as `SmallVec`.
 ///
 /// Mutable methods are only available when the underlying storage allows
 /// mutable access.
@@ -261,23 +262,17 @@ impl<B: AsRef<[u32]>> Bitset<B> {
     /// ```
     #[inline]
     pub fn u32_at(&self, at: usize) -> Result<u32, u32> {
-        // TODO(perf): use slice::align_to::<u64>
-        let block = at / u32::BITS64;
-        let offset = (at % u32::BITS64) as u32;
-
-        if offset == 0 {
-            self.0.as_ref().get(block).copied().ok_or(0)
-        } else {
-            let inset = u32::BITS - offset;
-            let msb_0 = self.0.as_ref().get(block).map_or(0, |&t| t) >> offset;
-            let lsb_1 = self.0.as_ref().get(block + 1).map_or(0, |&t| t) << inset;
-
-            let mask = safe_n_mask(inset);
-
-            let spills_out = at + 32 > self.bit_len();
-            let ctor = if spills_out { Err } else { Ok };
-            ctor((msb_0 & mask) | (lsb_1 & !mask))
-        }
+        let last_truncated = || {
+            let offset = (at % u32::BITS64) as u32;
+            let slice = self.0.as_ref();
+            let end = slice.len();
+            if end == 0 {
+                return 0;
+            }
+            let block = slice[end - 1];
+            block >> offset
+        };
+        self.n_at(32, at).ok_or_else(last_truncated)
     }
     /// Like [`Self::u32_at`], but limited to `n` bits. `n <= 32`.
     ///
@@ -306,7 +301,7 @@ impl<B: AsRef<[u32]>> Bitset<B> {
             Some(value & n_mask)
         }
     }
-    pub fn ones_in_range(&self, range: impl RangeBounds<usize>) -> Ones {
+    pub fn ones_in_range(&self, range: impl RangeBounds<usize>) -> Ones<&[u32]> {
         let start = match range.start_bound() {
             std::ops::Bound::Included(start) => *start,
             std::ops::Bound::Excluded(start) => *start + 1,
@@ -332,12 +327,12 @@ impl<B: AsRef<[u32]>> Bitset<B> {
         };
         let all_blocks = &self.0.as_ref()[range.clone()];
 
-        let (mut bitset, remaining_blocks) = all_blocks
+        let (mut bitset, blocks) = all_blocks
             .split_first()
             .map_or((0, all_blocks), |(b, r)| (*b, r));
 
         bitset &= ((1 << crop.start) - 1) ^ u32::MAX;
-        if remaining_blocks.is_empty() && crop.end != 0 {
+        if blocks.is_empty() && crop.end != 0 {
             bitset &= (1 << crop.end) - 1;
         }
         Ones {
@@ -345,7 +340,7 @@ impl<B: AsRef<[u32]>> Bitset<B> {
             crop: crop.end,
 
             bitset,
-            remaining_blocks,
+            blocks,
         }
     }
 }
@@ -364,7 +359,7 @@ impl<B: AsRef<[u32]>> fmt::Debug for Bitset<B> {
 }
 impl<'a, B: AsRef<[u32]>> IntoIterator for &'a Bitset<B> {
     type Item = u32;
-    type IntoIter = Ones<'a>;
+    type IntoIter = Ones<&'a [u32]>;
     fn into_iter(self) -> Self::IntoIter {
         self.ones_in_range(0..self.bit_len())
     }
@@ -432,17 +427,55 @@ impl FromIterator<usize> for Bitset<Vec<u32>> {
     }
 }
 
+// TODO(perf): consider swapping block_idx, crop: u16
+// or even a compact u26|u6 because `crop` can at most be `32`
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Ones<'a> {
+pub struct Ones<B: AsRef<[u32]>> {
     /// Index in u32 of `bitset`.
     block_idx: u32,
     /// How many bits to keep in the last block.
     crop: u32,
 
     bitset: u32,
-    remaining_blocks: &'a [u32],
+    blocks: B,
 }
-impl<'a> Ones<'a> {
+impl<B: AsRef<[u32]>> Iterator for Ones<B> {
+    type Item = u32;
+
+    #[inline]
+    fn next(&mut self) -> Option<Self::Item> {
+        let slice = self.blocks.as_ref();
+        while self.bitset == 0 {
+            if self.block_idx == slice.len() as u32 {
+                return None;
+            }
+            self.bitset = slice[self.block_idx as usize];
+            self.block_idx += 1;
+
+            if self.block_idx == slice.len() as u32 && self.crop != 0 {
+                self.bitset &= (1 << self.crop) - 1;
+            }
+        }
+        let t = self.bitset & 0_u32.wrapping_sub(self.bitset);
+        let r = self.bitset.trailing_zeros();
+        self.bitset ^= t;
+        Some(self.block_idx * u32::BITS + r)
+    }
+}
+impl<B: AsRef<[u32]>> SortedByItem for Ones<B> {}
+impl<B: AsRef<[u32]>> Ones<B> {
+    pub fn from_all_bits(bitset: Bitset<B>) -> Self {
+        let (Ok(first) | Err(first)) = bitset.u32_at(0);
+        Ones {
+            block_idx: 0,
+            crop: u32::BITS,
+            bitset: first,
+            blocks: bitset.0,
+        }
+    }
+}
+
+impl Ones<[u32; 0]> {
     /// Iterate over bits of a single `u32`.
     ///
     /// # Example
@@ -460,31 +493,7 @@ impl<'a> Ones<'a> {
             block_idx: 0,
             crop: u32::BITS,
             bitset: value,
-            remaining_blocks: &[],
+            blocks: [],
         }
     }
 }
-impl Iterator for Ones<'_> {
-    type Item = u32;
-
-    #[inline]
-    fn next(&mut self) -> Option<Self::Item> {
-        while self.bitset == 0 {
-            let Some((&bitset, remaining_blocks)) =  self.remaining_blocks.split_first() else {
-                return None;
-            };
-            self.bitset = bitset;
-            self.remaining_blocks = remaining_blocks;
-
-            if self.remaining_blocks.is_empty() && self.crop != 0 {
-                self.bitset &= (1 << self.crop) - 1;
-            }
-            self.block_idx += 1;
-        }
-        let t = self.bitset & 0_u32.wrapping_sub(self.bitset);
-        let r = self.bitset.trailing_zeros();
-        self.bitset ^= t;
-        Some(self.block_idx * u32::BITS + r)
-    }
-}
-impl SortedByItem for Ones<'_> {}
