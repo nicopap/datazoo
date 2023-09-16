@@ -2,11 +2,10 @@
 //!
 //! [jagged array]: https://en.wikipedia.org/wiki/Jagged_array
 
-use std::mem::size_of;
-
 use thiserror::Error;
 
 /// [`JaggedVec::new`] construction error.
+#[allow(missing_docs)]
 #[derive(Debug, Error)]
 pub enum Error {
     /// An `end` in `ends` was lower than a previous one.
@@ -33,19 +32,23 @@ pub struct JaggedVec<T> {
     data: Vec<T>,
 }
 impl<T> JaggedVec<T> {
+    /// Add `row` at the end of the matrix.
     pub fn push_row(&mut self, row: impl IntoIterator<Item = T>) {
         self.ends.push(self.data.len() as u32);
         self.data.extend(row);
     }
     /// How many cells are contained in this `JaggedVec`.
+    #[must_use]
     pub fn len(&self) -> usize {
         self.data.len()
     }
     /// Is this vector empty (no cells, may have several empty rows).
+    #[must_use]
     pub fn is_empty(&self) -> bool {
         self.data.is_empty()
     }
     /// How many rows this `JaggedVec` has.
+    #[must_use]
     pub fn height(&self) -> usize {
         self.ends.len() + 1
     }
@@ -56,13 +59,12 @@ impl<T> JaggedVec<T> {
     /// The last row will be the values between the last `end` in `ends` and
     /// the total size of the `data` array.
     ///
-    /// Returns `Err` if:
-    ///
+    /// # Errors
+    /// The `ends` slice is invalid:
     /// - An `ends[i] > data.len()`
     /// - An `ends[i+1] < ends[i]`
     ///
     /// # Example
-    ///
     /// ```rust
     /// use datazoo::JaggedVec;
     ///
@@ -86,8 +88,6 @@ impl<T> JaggedVec<T> {
     /// );
     /// ```
     pub fn new(ends: Vec<u32>, data: Vec<T>) -> Result<Self, Error> {
-        assert!(size_of::<usize>() >= size_of::<u32>());
-
         let mut previous_end = 0;
         let last_end = data.len() as u32;
         for (i, end) in ends.iter().enumerate() {
@@ -119,6 +119,7 @@ impl<T> JaggedVec<T> {
     /// assert_eq!(jagged.row(4), &[4, 5, 6]);
     /// ```
     #[inline]
+    #[must_use]
     pub fn row(&self, index: usize) -> &[T] {
         assert!(index <= self.ends.len());
         // TODO(perf): verify generated code elides bound checks.
@@ -145,6 +146,7 @@ impl<T> JaggedVec<T> {
     /// assert_eq!(jagged.get(4), Some(&4));
     /// ```
     #[inline]
+    #[must_use]
     pub fn get(&self, direct_index: usize) -> Option<&T> {
         self.data.get(direct_index)
     }
@@ -155,6 +157,7 @@ impl<T> JaggedVec<T> {
     /// rows is much less costly.
     ///
     /// [Iliffe vector]: https://en.wikipedia.org/wiki/Iliffe_vector
+    #[must_use]
     pub fn into_vecs(self) -> Vec<Vec<T>> {
         let Self { ends, mut data } = self;
 
@@ -164,7 +167,7 @@ impl<T> JaggedVec<T> {
         // TODO(perf): this is slow as heck because each drain needs to move
         // forward the end of the `data` vec, if we reverse ends here, we can
         // skip the nonsense.
-        for end in ends.into_iter() {
+        for end in ends {
             let size = (end - last_end) as usize;
             iliffe.push(data.drain(..size).collect());
             last_end = end;

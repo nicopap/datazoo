@@ -28,7 +28,7 @@ impl BlockT for u32 {
 /// mutable access.
 ///
 /// ```rust
-/// use cuicui_datazoo::Bitset;
+/// use datazoo::Bitset;
 /// let bunch_of_bits = [0xf0f0_00ff, 0xfff0_000f, 0xfff0_0f0f];
 ///
 /// let as_array: Bitset<[u32; 3]> = Bitset(bunch_of_bits);
@@ -58,7 +58,7 @@ impl BlockT for u32 {
 /// the backing storage `B` must be mutable. Otherwise, you just can't use them.
 ///
 /// ```compile_fail
-/// # use cuicui_datazoo::Bitset;
+/// # use datazoo::Bitset;
 /// # let bunch_of_bits = [0xf0f0_00ff, 0xfff0_000f, 0xfff0_0f0f];
 /// let as_slice: Bitset<&[u32]> = Bitset(&bunch_of_bits);
 ///
@@ -68,7 +68,7 @@ impl BlockT for u32 {
 /// `Vec<_>` and `&mut [_]` do support mutable access, so the following works:
 ///
 /// ```
-/// # use cuicui_datazoo::Bitset;
+/// # use datazoo::Bitset;
 /// # let mut bunch_of_bits = [0xf0f0_00ff, 0xfff0_000f, 0xfff0_0f0f];
 /// let mut as_vec: Bitset<Vec<u32>> = Bitset(bunch_of_bits.to_vec());
 /// let mut as_mut_slice: Bitset<&mut [u32]> = Bitset(&mut bunch_of_bits);
@@ -103,7 +103,7 @@ impl Bitset<Vec<u32>> {
     /// # Example
     ///
     /// ```
-    /// # use cuicui_datazoo::Bitset;
+    /// # use datazoo::Bitset;
     /// let mut as_vec = Bitset(vec![]);
     /// assert!(as_vec.enable_bit(64).is_none());
     /// assert_eq!(as_vec.0.len(), 0);
@@ -137,7 +137,7 @@ impl<B: AsRef<[u32]> + AsMut<[u32]>> Bitset<B> {
     /// # Example
     ///
     /// ```
-    /// # use cuicui_datazoo::Bitset;
+    /// # use datazoo::Bitset;
     /// let mut bitset = Bitset([0, 0, 0]);
     /// assert_eq!(bitset.bit(12), false);
     /// assert_eq!(bitset.bit(54), false);
@@ -166,7 +166,7 @@ impl<B: AsRef<[u32]> + AsMut<[u32]>> Bitset<B> {
     /// # Example
     ///
     /// ```
-    /// # use cuicui_datazoo::Bitset;
+    /// # use datazoo::Bitset;
     /// let mut bitset = Bitset([0, 0, 0]);
     /// assert_eq!(bitset.bit(73), false);
     ///
@@ -190,7 +190,7 @@ impl<B: AsRef<[u32]> + AsMut<[u32]>> Bitset<B> {
     /// # Example
     ///
     /// ```
-    /// # use cuicui_datazoo::Bitset;
+    /// # use datazoo::Bitset;
     /// # use std::ops::Not;
     /// let mut bitset = Bitset(vec![0xffff_ffff, 0xffff_ffff, 0xffff_ffff]);
     ///
@@ -217,7 +217,7 @@ impl<B: AsRef<[u32]>> Bitset<B> {
     /// # Example
     ///
     /// ```
-    /// # use cuicui_datazoo::Bitset;
+    /// # use datazoo::Bitset;
     /// let bitset = Bitset(&[0x0000_0000, 0x0000_0000, 0x0000_0000]);
     /// assert_eq!(bitset.bit_len(), 32 * 3);
     ///
@@ -243,12 +243,12 @@ impl<B: AsRef<[u32]>> Bitset<B> {
     }
     /// Returns the 32 bits in the bitset starting at `at`.
     ///
-    /// `Err` with a truncated value if `at + 32` is larger than the bitset.
+    /// # Errors
+    /// Returns an `Err` with a truncated value if `at + 32` is larger than the bitset.
     ///
     /// # Example
-    ///
     /// ```
-    /// # use cuicui_datazoo::Bitset;
+    /// # use datazoo::Bitset;
     /// let bitset = Bitset(&[0xf0f0_00ff, 0xfff0_000f, 0xfff0_0f0f]);
     ///
     /// assert_eq!(bitset.u32_at(0),  Ok(0xf0f0_00ff));
@@ -260,23 +260,30 @@ impl<B: AsRef<[u32]>> Bitset<B> {
     /// assert_eq!(bitset.u32_at(80), Err(0xfff0));
     /// ```
     #[inline]
+    #[allow(clippy::similar_names)] // foo_1 is distinct from bar_0 fairly clearly
     pub fn u32_at(&self, at: usize) -> Result<u32, u32> {
-        let last_truncated = || {
-            let offset = (at % u32::BITS64) as u32;
-            let slice = self.0.as_ref();
-            let end = slice.len();
-            if end == 0 {
-                return 0;
-            }
-            let block = slice[end - 1];
-            block >> offset
-        };
-        self.n_at(32, at).ok_or_else(last_truncated)
+        let block = at / u32::BITS64;
+        let offset = (at % u32::BITS64) as u32;
+
+        if offset == 0 {
+            self.0.as_ref().get(block).copied().ok_or(0)
+        } else {
+            let inset = u32::BITS - offset;
+            let msb_0 = self.0.as_ref().get(block).map_or(0, |&t| t) >> offset;
+            let lsb_1 = self.0.as_ref().get(block + 1).map_or(0, |&t| t) << inset;
+
+            let mask = safe_n_mask(inset);
+
+            let spills_out = at + 32 > self.bit_len();
+            let ctor = if spills_out { Err } else { Ok };
+            ctor((msb_0 & mask) | (lsb_1 & !mask))
+        }
     }
     /// Like [`Self::u32_at`], but limited to `n` bits. `n <= 32`.
     ///
     /// Returns `None` if `at + n` is larger than the bitset.
     #[inline]
+    #[allow(clippy::similar_names)] // foo_1 is distinct from bar_0 fairly clearly
     pub fn n_at(&self, n: u32, at: usize) -> Option<u32> {
         // TODO(perf): use slice::align_to::<u64>
         let block = at / u32::BITS64;
@@ -300,7 +307,9 @@ impl<B: AsRef<[u32]>> Bitset<B> {
             Some(value & n_mask)
         }
     }
-    pub fn ones_in_range(&self, range: impl RangeBounds<usize>) -> Ones<&[u32]> {
+    /// Get an iterator over the index of enabled bits within provided `range`.
+    #[inline]
+    pub fn ones_in_range(&self, range: impl RangeBounds<usize>) -> Ones {
         let start = match range.start_bound() {
             std::ops::Bound::Included(start) => *start,
             std::ops::Bound::Excluded(start) => *start + 1,
@@ -311,8 +320,6 @@ impl<B: AsRef<[u32]>> Bitset<B> {
             std::ops::Bound::Excluded(end) => *end,
             std::ops::Bound::Unbounded => self.bit_len(),
         };
-        assert!(start <= end);
-        assert!(end <= self.bit_len());
 
         // the offset to "crop" the bits at the edges of the [u32]
         let crop = Range {
@@ -326,20 +333,20 @@ impl<B: AsRef<[u32]>> Bitset<B> {
         };
         let all_blocks = &self.0.as_ref()[range.clone()];
 
-        let (mut bitset, blocks) = all_blocks
+        let (mut bitset, remaining_blocks) = all_blocks
             .split_first()
             .map_or((0, all_blocks), |(b, r)| (*b, r));
 
         bitset &= ((1 << crop.start) - 1) ^ u32::MAX;
-        if blocks.is_empty() && crop.end != 0 {
+        if remaining_blocks.is_empty() && crop.end != 0 {
             bitset &= (1 << crop.end) - 1;
         }
         Ones {
-            block_idx: u32::try_from(range.start).unwrap(),
+            block_idx: range.start as u32,
             crop: crop.end,
 
             bitset,
-            blocks,
+            remaining_blocks,
         }
     }
 }
@@ -358,7 +365,7 @@ impl<B: AsRef<[u32]>> fmt::Debug for Bitset<B> {
 }
 impl<'a, B: AsRef<[u32]>> IntoIterator for &'a Bitset<B> {
     type Item = u32;
-    type IntoIter = Ones<&'a [u32]>;
+    type IntoIter = Ones<'a>;
     fn into_iter(self) -> Self::IntoIter {
         self.ones_in_range(0..self.bit_len())
     }
@@ -367,14 +374,14 @@ impl Extend<u32> for Bitset<Vec<u32>> {
     #[inline]
     fn extend<T: IntoIterator<Item = u32>>(&mut self, iter: T) {
         iter.into_iter()
-            .for_each(|bit| self.enable_bit_extending(bit as usize))
+            .for_each(|bit| self.enable_bit_extending(bit as usize));
     }
 }
 impl Extend<usize> for Bitset<Vec<u32>> {
     #[inline]
     fn extend<T: IntoIterator<Item = usize>>(&mut self, iter: T) {
         iter.into_iter()
-            .for_each(|bit| self.enable_bit_extending(bit))
+            .for_each(|bit| self.enable_bit_extending(bit));
     }
 }
 impl Extend<u32> for Bitset<Box<[u32]>> {
@@ -384,7 +391,7 @@ impl Extend<u32> for Bitset<Box<[u32]>> {
     fn extend<T: IntoIterator<Item = u32>>(&mut self, iter: T) {
         iter.into_iter().for_each(|bit| {
             self.enable_bit(bit as usize);
-        })
+        });
     }
 }
 impl Extend<usize> for Bitset<Box<[u32]>> {
@@ -394,7 +401,7 @@ impl Extend<usize> for Bitset<Box<[u32]>> {
     fn extend<T: IntoIterator<Item = usize>>(&mut self, iter: T) {
         iter.into_iter().for_each(|bit| {
             self.enable_bit(bit);
-        })
+        });
     }
 }
 impl FromIterator<u32> for Bitset<Box<[u32]>> {
@@ -428,32 +435,33 @@ impl FromIterator<usize> for Bitset<Vec<u32>> {
 
 // TODO(perf): consider swapping block_idx, crop: u16
 // or even a compact u26|u6 because `crop` can at most be `32`
+/// Iterator over the enables bits of the subset of a [`Bitset`].
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Ones<B: AsRef<[u32]>> {
+pub struct Ones<'a> {
     /// Index in u32 of `bitset`.
     block_idx: u32,
     /// How many bits to keep in the last block.
     crop: u32,
 
     bitset: u32,
-    blocks: B,
+    remaining_blocks: &'a [u32],
 }
-impl<B: AsRef<[u32]>> Iterator for Ones<B> {
+impl Iterator for Ones<'_> {
     type Item = u32;
 
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
-        let slice = self.blocks.as_ref();
         while self.bitset == 0 {
-            if self.block_idx == slice.len() as u32 {
+            let Some((&bitset, remaining_blocks)) = self.remaining_blocks.split_first() else {
                 return None;
-            }
-            self.bitset = slice[self.block_idx as usize];
-            self.block_idx += 1;
+            };
+            self.bitset = bitset;
+            self.remaining_blocks = remaining_blocks;
 
-            if self.block_idx == slice.len() as u32 && self.crop != 0 {
+            if self.remaining_blocks.is_empty() && self.crop != 0 {
                 self.bitset &= (1 << self.crop) - 1;
             }
+            self.block_idx += 1;
         }
         let t = self.bitset & 0_u32.wrapping_sub(self.bitset);
         let r = self.bitset.trailing_zeros();
@@ -464,77 +472,47 @@ impl<B: AsRef<[u32]>> Iterator for Ones<B> {
     fn size_hint(&self) -> (usize, Option<usize>) {
         let bitset_ones = self.bitset.count_ones();
 
-        let Some(slice) = self.blocks.as_ref().get(self.block_idx as usize..) else {
+        let Some((last, slice)) = self.remaining_blocks.split_last() else {
             return (bitset_ones as usize, Some(bitset_ones as usize));
         };
         let ones: u32 = slice.iter().map(|b| b.count_ones()).sum();
-        let trailing_bits = slice.last().map_or(0, |b| b & !((1 << self.crop) - 1));
+        let trailing_bits = last & !((1 << self.crop) - 1);
         let trailing_bits = trailing_bits.count_ones();
 
-        let exact_size = (bitset_ones + ones - trailing_bits) as usize;
+        let exact_size = (bitset_ones + ones + trailing_bits) as usize;
         (exact_size, Some(exact_size))
     }
 }
-impl<B: AsRef<[u32]>> ExactSizeIterator for Ones<B> {}
+impl ExactSizeIterator for Ones<'_> {}
 
-impl<B: AsRef<[u32]>> SortedByItem for Ones<B> {}
+impl SortedByItem for Ones<'_> {}
 
-impl<B: AsRef<[u32]>> Ones<B> {
-    pub fn from_all_bits(bitset: Bitset<B>) -> Self {
-        let (Ok(first) | Err(first)) = bitset.u32_at(0);
-        Ones {
-            block_idx: 0,
-            crop: u32::BITS,
-            bitset: first,
-            blocks: bitset.0,
-        }
-    }
+impl Ones<'_> {
     // TODO(BUG): not true when `Ones` is partially consumed, or starts not at a u32 block
     /// True if all items in the `Ones` is enabled (ie: iteration is a list of successors)
     ///
+    /// # Bug
+    /// This doesn't work if the start of range is not a multiple of `32`.
+    ///
     /// # Example
     /// ```
-    /// # use cuicui_datazoo::Bitset;
+    /// # use datazoo::Bitset;
     /// let bitset = Bitset(&[0xf0f0_00ff, 0xffff_ffff, 0xfff0_0f0f]);
     ///
     /// assert!(bitset.ones_in_range(32..64).all_one());
-    /// assert!(bitset.ones_in_range(64..76).all_one());
+    /// assert!(bitset.ones_in_range(0..8).all_one());
     /// ```
+    #[must_use]
     pub fn all_one(self) -> bool {
-        let bitset_ones = self.bitset == u32::MAX;
+        let Some((last, slice)) = self.remaining_blocks.split_last() else {
+            let mask = (1 << self.crop) - 1;
+            return (self.bitset & mask) == mask;
+        };
 
-        let Some(slice) = self.blocks.as_ref().get(self.block_idx as usize..) else {
-            return bitset_ones;
-        };
-        let Some((&tail, prefix)) = slice.split_last() else {
-            return bitset_ones;
-        };
-        let prefix_ones = prefix.iter().fold(true, |acc, &b| acc & (b == u32::MAX));
+        let bitset_ones = self.bitset.count_ones() == self.bitset.trailing_ones();
+        let prefix_ones = slice.iter().fold(true, |acc, &b| acc & (b == u32::MAX));
         let mask = (1 << self.crop) - 1;
-        let tail_ones = (tail & mask) == mask;
+        let tail_ones = (last & mask) == mask;
         bitset_ones && prefix_ones && tail_ones
-    }
-}
-
-impl Ones<[u32; 0]> {
-    /// Iterate over bits of a single `u32`.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// use cuicui_datazoo::bitset::Ones;
-    /// // read the bits from right to left.
-    /// let my_bits = 0b1001_0000_1010;
-    ///
-    /// let bit_positions: Vec<_> = Ones::from_single(my_bits).collect();
-    /// assert_eq!(&bit_positions, &[1, 3, 8, 11]);
-    /// ```
-    pub const fn from_single(value: u32) -> Self {
-        Ones {
-            block_idx: 0,
-            crop: u32::BITS,
-            bitset: value,
-            blocks: [],
-        }
     }
 }

@@ -6,7 +6,7 @@ use std::{fmt, marker::PhantomData, mem::size_of};
 
 use enumset::{EnumSet, EnumSetType};
 
-use crate::{jagged_array, JaggedArray};
+use crate::JaggedArray;
 
 struct OwnAsRefSlice<const U: usize>(Box<[u32; U]>);
 impl<const U: usize> AsRef<[u32]> for OwnAsRefSlice<U> {
@@ -14,7 +14,7 @@ impl<const U: usize> AsRef<[u32]> for OwnAsRefSlice<U> {
         self.0.as_ref()
     }
 }
-/// A [multimap] stored in a [`JaggedConstRowArray`].
+/// A [multimap] stored in a [`JaggedArray`].
 ///
 /// The key set need to be bound and exhaustively known at compile time,
 /// ie: it must be an enum derived with `#[derive(EnumSetType)]`.
@@ -33,14 +33,17 @@ impl<K: EnumSetType, V: fmt::Debug, const CLM: usize> fmt::Debug for EnumMultima
     }
 }
 impl<K: EnumSetType, V, const CLM: usize> EnumMultimap<K, V, CLM> {
+    /// Iterate over all rows, as slice, keyed by elements present in `set`.
     pub fn all_rows(&self, set: EnumSet<K>) -> impl Iterator<Item = &[V]> + '_ {
         set.iter()
             .filter_map(|x| self.inner.get_row(x.enum_into_u32() as usize))
     }
+    /// Get row slice for `key`.
     #[must_use]
     pub fn row(&self, key: K) -> &[V] {
         let index = key.enum_into_u32() as usize;
-        self.inner.row(index)
+        // SAFETY: by construction, `K` has a value below CLM.
+        unsafe { self.inner.get_row(index).unwrap_unchecked() }
     }
     /// Get `V` at exact `direct_index` ignoring row sizes,
     /// acts as if the whole array was a single row.
@@ -52,9 +55,10 @@ impl<K: EnumSetType, V, const CLM: usize> EnumMultimap<K, V, CLM> {
     }
 }
 
+/// Build a [`EnumMultimap`].
 #[derive(Debug, Clone)]
 pub struct Builder<K, V, const CLM: usize> {
-    pub rows: Vec<Box<[V]>>,
+    rows: Vec<Box<[V]>>,
     _key: PhantomData<K>,
 }
 impl<K: EnumSetType, V, const CLM: usize> Default for Builder<K, V, CLM> {
@@ -71,15 +75,19 @@ impl<K: EnumSetType, V, const CLM: usize> Builder<K, V, CLM> {
         assert!(size_of::<usize>() >= size_of::<u32>());
     };
 
+    /// Create a new [`EnumMultimap`] builder.
     #[must_use]
     pub fn new() -> Self {
         Builder { rows: Vec::with_capacity(CLM), _key: PhantomData }
     }
+    /// Insert provided `values` into `key` row.
     pub fn insert(&mut self, key: K, values: impl Iterator<Item = V>) {
         let row = key.enum_into_u32() as usize;
         self.rows.insert(row, values.collect());
     }
-    pub fn build(self) -> Result<EnumMultimap<K, V, CLM>, jagged_array::Error> {
+    /// Create the [`EnumMultimap`] from provided rows.
+    #[must_use]
+    pub fn build(self) -> EnumMultimap<K, V, CLM> {
         let mut end = 0;
         let mut ends = Box::new([0; CLM]);
         let mut data = Vec::new();
@@ -90,7 +98,12 @@ impl<K: EnumSetType, V, const CLM: usize> Builder<K, V, CLM> {
                 ends[i] = end;
             }
         }
-        let inner = JaggedArray::new(OwnAsRefSlice(ends), data.into_boxed_slice())?;
-        Ok(EnumMultimap { inner, _key: PhantomData })
+        // SAFETY:
+        // - by construction, the ends are always increasing
+        // - by construction, ends never grow beyond the total size of `data`.
+        let inner = unsafe {
+            JaggedArray::new(OwnAsRefSlice(ends), data.into_boxed_slice()).unwrap_unchecked()
+        };
+        EnumMultimap { inner, _key: PhantomData }
     }
 }

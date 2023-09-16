@@ -53,6 +53,7 @@ impl<K: Ord, V> From<std::vec::Vec<(K, V)>> for ByKeyVec<K, V> {
     }
 }
 impl<K: Ord, V, A: AsRef<[(K, V)]>> KeySorted<A, K, V> {
+    /// Whether this key/value slice contains `key` as key.
     pub fn contains_key<Q>(&self, key: &Q) -> bool
     where
         K: Borrow<Q>,
@@ -61,6 +62,7 @@ impl<K: Ord, V, A: AsRef<[(K, V)]>> KeySorted<A, K, V> {
         let slice = self.0.as_ref();
         slice.binary_search_by_key(&key, |e| e.0.borrow()).is_ok()
     }
+    /// Get reference to value associated with provided `key`.
     pub fn get<Q>(&self, key: &Q) -> Option<&V>
     where
         K: Borrow<Q>,
@@ -73,9 +75,11 @@ impl<K: Ord, V, A: AsRef<[(K, V)]>> KeySorted<A, K, V> {
     }
 }
 impl<K: Ord, V, A: AsRef<[(K, V)]> + AsMut<[(K, V)]>> KeySorted<A, K, V> {
+    /// Iterate mutably over values, sorted by `K`.
     pub fn values_mut(&mut self) -> impl Iterator<Item = &mut V> {
         self.0.as_mut().iter_mut().map(|e| &mut e.1)
     }
+    /// Get mutable access to a `value`.
     pub fn get_mut<Q>(&mut self, key: &Q) -> Option<&mut V>
     where
         K: Borrow<Q>,
@@ -88,6 +92,7 @@ impl<K: Ord, V, A: AsRef<[(K, V)]> + AsMut<[(K, V)]>> KeySorted<A, K, V> {
     }
 }
 impl<K: Ord, V> ByKeyVec<K, V> {
+    /// Insert `key`/`value` pair such that the order is always respected.
     pub fn insert(&mut self, key: K, value: V) {
         let (Ok(index) | Err(index)) = self.0.binary_search_by_key(&&key, |e| &e.0);
         self.0.insert(index, (key, value));
@@ -109,14 +114,18 @@ impl<A: AsRef<[(K, V)]>, K: Ord, V> Deref for KeySorted<A, K, V> {
 }
 
 impl<A: AsRef<[(K, V)]>, K: Ord, V> KeySorted<A, K, V> {
+    /// Get an iterator over the key/value pairs of this slice, implementing
+    /// [`SortedByKey`].
     pub fn iter(&self) -> KeysortedIter<K, V> {
         KeysortedIter(self.0.as_ref().iter())
     }
+    /// Get the underlying type.
     #[allow(clippy::missing_const_for_fn)] // false positive
     pub fn into_inner(self) -> A {
         self.0
     }
 }
+/// [`slice::Iter`] for slices guarenteed to be sorted by key.
 pub struct KeysortedIter<'a, K, V>(slice::Iter<'a, (K, V)>);
 impl<'a, K, V> Iterator for KeysortedIter<'a, K, V> {
     type Item = (&'a K, &'a V);
@@ -173,6 +182,7 @@ impl<'a, 'b: 'a, A: AsRef<[(K, V)]> + 'b, K: Ord, V> IntoIterator for &'a KeySor
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub struct Sorted<A: AsRef<[T]>, T: Ord>(A, PhantomData<fn(T)>);
 impl<A: AsRef<[T]>, T: Ord> Sorted<A, T> {
+    /// The sorted slice.
     pub fn slice(&self) -> Slice<T> {
         Sorted(self.0.as_ref(), PhantomData)
     }
@@ -218,6 +228,7 @@ impl<A: AsRef<[T]>, T: Ord> Deref for Sorted<A, T> {
         self.0.as_ref()
     }
 }
+/// [`slice::Iter`] for slices guarenteed to be sorted by item.
 pub struct SortedIter<'a, T>(slice::Iter<'a, T>);
 impl<T> SortedByItem for SortedIter<'_, T> {}
 

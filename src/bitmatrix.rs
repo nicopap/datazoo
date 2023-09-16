@@ -19,6 +19,7 @@ impl BitMatrix {
     /// # Panics
     /// If `Self` is not empty **and** `width` equals `0` (division by zero)
     #[inline]
+    #[must_use]
     pub fn height(&self, width: usize) -> usize {
         match self.0.bit_len() {
             0 => 0,
@@ -32,10 +33,14 @@ impl BitMatrix {
     /// When `width = 0` (this would otherwise mean there is an infinite
     /// amount of columns)
     #[inline]
+    #[must_use]
     pub fn active_rows_in_column(&self, width: usize, x: usize) -> Column {
         assert_ne!(width, 0);
         Column { data: &self.0 .0, width, current_cell: x }
     }
+    /// Iterate over the enabled bits of a single row at `y` of this `Bitmatrix`.
+    ///
+    /// Assuming the `Bitmatrix` has the provided `width`.
     pub fn row(&self, width: usize, y: usize) -> impl Iterator<Item = usize> + '_ {
         let start = y * width;
         let end = (y + 1) * width;
@@ -70,6 +75,7 @@ impl BitMatrix {
     /// `true` if bit at position `x, y` in matrix is enabled.
     ///
     /// `false` otherwise, included if `x, y` is outside of the matrix.
+    #[must_use]
     pub fn bit(&self, width: usize, x: usize, y: usize) -> bool {
         x < width && self.0.bit(x + y * width)
     }
@@ -78,6 +84,7 @@ impl BitMatrix {
     /// displays the matrix using unicode sextant characters([pdf]).
     ///
     /// [pdf]: https://unicode.org/charts/PDF/U1FB00.pdf
+    #[must_use]
     pub const fn sextant_display(&self, width: usize, height: usize) -> SextantDisplay {
         SextantDisplay { matrix: self, width, height }
     }
@@ -147,7 +154,7 @@ impl<'a> fmt::Display for SextantDisplay<'a> {
             for x in 0..div_ceil(self.width, 2) {
                 let get_bit = |offset_x, offset_y| {
                     let (x, y) = (x * 2 + offset_x, y * 3 + offset_y);
-                    self.matrix.bit(self.width, x, y) as u32
+                    u32::from(self.matrix.bit(self.width, x, y))
                 };
                 let offset = get_bit(0, 0)
                     | get_bit(1, 0) << 1
@@ -156,8 +163,8 @@ impl<'a> fmt::Display for SextantDisplay<'a> {
                     | get_bit(0, 2) << 4
                     | get_bit(1, 2) << 5;
                 let character = match offset {
-                    0b111111 => '\u{2588}',
-                    0b000000 => ' ',
+                    0b11_1111 => '\u{2588}',
+                    0b00_0000 => ' ',
                     offset => char::from_u32(0x1fb00 + offset - 1).unwrap(),
                 };
                 write!(f, "{character}")?;

@@ -50,6 +50,7 @@ impl<R: EnumSetType> EnumBitMatrix<R> {
         }
     }
     /// The width in bits of individual rows of this [`EnumBitMatrix`].
+    #[must_use]
     pub const fn bit_width(&self) -> u32 {
         self.0 .0.len() as u32 / R::BIT_WIDTH
     }
@@ -78,6 +79,7 @@ impl<R: EnumSetType> EnumBitMatrix<R> {
     /// Iterate over enabled bits in all `rows`, limited to provided `range`.
     ///
     /// [`Rows`] is a sorted iterator.
+    #[must_use]
     pub const fn rows(&self, rows: EnumSet<R>, range: Range<u32>) -> Rows<R> {
         Rows { range, rows, bitset: self }
     }

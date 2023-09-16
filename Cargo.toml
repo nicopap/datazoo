@@ -10,8 +10,11 @@ repository = "https://github.com/nicopap/datazoo"
 version = "0.1.0"
 edition = "2021"
 
+[features]
+default = ["enumset"]
+
 [dependencies]
-enumset = { version = "1.1", features = ["std"] }
+enumset = { version = "1.1", features = ["std"], optional = true }
 sorted-iter = "0.1.11"
 thiserror = "1"
 

@@ -88,7 +88,7 @@ impl<K: Index, V: From<usize> + Index> FromIterator<(K, V)> for IndexMultimap<K,
         let (width, height) = (max_value, max_key);
         let mut assocs = BitMatrix::new_with_size(width, height);
 
-        for (key, value) in key_values.iter() {
+        for (key, value) in &*key_values {
             assocs.enable_bit(width, value.get(), key.get()).unwrap();
         }
         IndexMultimap { assocs, value_count: width, _idx_ty: PhantomData }

@@ -4,7 +4,7 @@
 
 use std::{fmt, marker::PhantomData};
 
-use crate::{bitset::Ones, div_ceil, safe_n_mask, Bitset, Index, MostSignificantBit};
+use crate::{div_ceil, safe_n_mask, Bitset, Index, MostSignificantBit};
 
 /// Parametrize [`RawIndexMap`] to implement equality in terms of `V` rather
 /// than raw bit value.
@@ -23,7 +23,7 @@ use crate::{bitset::Ones, div_ceil, safe_n_mask, Bitset, Index, MostSignificantB
 /// #[derive(Debug, Clone, PartialEq)]
 /// struct MyV(u32);
 /// impl From<u32> for MyV { fn from(v: u32) -> Self {MyV(v)} }
-/// impl Index for MyV { fn get(&self) -> usize {self.0 as usize} }
+/// impl Index for MyV { fn get(&self) -> usize {self.0 as usize} fn new(v: usize) -> Self { MyV(v as u32) } }
 ///
 /// let mut map = RawIndexMap::<usize, MyV, ValueEq>::with_capacity(32, 32);
 ///
@@ -177,6 +177,7 @@ impl<K: Index, V: From<u32>, Eq> RawIndexMap<K, V, Eq> {
     /// - `⌊x⌋ = floor(x)`
     /// - `LMOn(x) = n · ⌈x / n⌉` (lowest multiple of `n` over `x`)
     /// - `vwidth = ⌈log₂(max_value + 1)⌉` (width in bits of a value)
+    #[must_use]
     pub fn with_capacity(key_len: usize, value_len: u32) -> Self {
         let vwidth = value_len.most_significant_bit() as usize;
         let bit_size = vwidth * key_len;
@@ -195,6 +196,7 @@ impl<K: Index, V: From<u32>, Eq> RawIndexMap<K, V, Eq> {
     /// This might not be the `key_len` provided as argument to [`Self::with_capacity`],
     /// as the underlying array aligns the number of bits to the next multiple of 32.
     #[allow(clippy::unnecessary_lazy_evaluations)] // see comment
+    #[must_use]
     pub fn capacity(&self) -> usize {
         let bit_len = self.indices.bit_len();
         // This prevents a division by zero when both bit_len and value_width are zero
@@ -267,7 +269,7 @@ impl<K: Index, V: From<u32>, Eq> RawIndexMap<K, V, Eq> {
         self.indices
             .disable_range(offset..offset + self.value_width);
         self.indices
-            .extend(Ones::from_single(value).map(|v| v + offset as u32));
+            .extend(Bitset([value]).ones_in_range(..).map(|v| v + offset as u32));
         Some(())
     }
     /// Set value of `key` to `value`.
@@ -279,10 +281,10 @@ impl<K: Index, V: From<u32>, Eq> RawIndexMap<K, V, Eq> {
     where
         V: Index,
     {
-        let cvalue = value.get() as u32;
-        let value_bits = cvalue.most_significant_bit();
+        let value_u32 = value.get() as u32;
+        let value_bits = value_u32.most_significant_bit();
         let width = self.value_width as u32;
-        if value_bits > width || cvalue == self.value_mask()? {
+        if value_bits > width || value_u32 == self.value_mask()? {
             let additional_bits = value_bits - width;
             let offset = |x: u32| x + x / width * additional_bits;
             let new_indices = self.indices.ones_in_range(..).map(offset);
@@ -349,7 +351,7 @@ impl<K: Index, V: From<u32> + Index> FromIterator<(K, V)> for RawIndexMap<K, V> 
         let max_value = u32::try_from(max_value).unwrap();
         let mut map = RawIndexMap::with_capacity(max_key, max_value);
 
-        for (key, value) in key_values.iter() {
+        for (key, value) in &*key_values {
             map.set(key, value);
         }
         map

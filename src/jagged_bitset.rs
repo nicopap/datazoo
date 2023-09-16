@@ -45,13 +45,16 @@ impl JaggedBitset {
     /// True if bits at column `x` and row `y` is enabled. False if not, or
     /// if `(x, y)` is not within the array.
     #[inline]
+    #[must_use]
     pub fn bit(&self, x: usize, y: usize) -> bool {
         if y >= self.capacity() {
             return false;
         }
         let start = y.checked_sub(1).map_or(Some(0), |i| self.ends.get(&i));
         let end = self.ends.get(&y);
-        let (Some(start), Some(end)) = (start, end) else { return false; };
+        let (Some(start), Some(end)) = (start, end) else {
+            return false;
+        };
         let (start, end) = (start as usize, end as usize);
 
         if x >= (end - start) {
@@ -63,16 +66,20 @@ impl JaggedBitset {
     ///
     /// `0` if `height == 0`.
     #[inline]
+    #[must_use]
     pub fn max_width(&self) -> u32 {
         let max = (0..self.capacity()).filter_map(|i| self.get_width(i)).max();
         max.unwrap_or(0)
     }
+    /// How many rows there are in this bitset matrix.
+    #[must_use]
     pub fn height(&self) -> usize {
         let first_occupied = self.ends.rev_iter().next();
         first_occupied.map_or(0, |(k, _)| k)
     }
     /// Return an upper bound of how many rows this jagged bitset has.
     #[inline]
+    #[must_use]
     pub fn capacity(&self) -> usize {
         self.ends.capacity()
     }
@@ -81,12 +88,14 @@ impl JaggedBitset {
     /// # Panics
     /// If `index` is greater or equal to the [`height`](Self::height).
     #[inline]
+    #[must_use]
     pub fn width(&self, index: usize) -> u32 {
         self.get_width(index).unwrap()
     }
     /// Return the column count of `index` row.
     /// `None` if `index` is greater or equal to the [`height`](Self::height).
     #[inline]
+    #[must_use]
     pub fn get_width(&self, index: usize) -> Option<u32> {
         let start = index
             .checked_sub(1)
@@ -105,6 +114,7 @@ impl JaggedBitset {
     /// Iterate over all enabled bits in given `index` row.
     ///
     /// Returns `None` if the row is out of bound.
+    #[must_use]
     pub fn get_row(&self, index: usize) -> Option<impl Iterator<Item = u32> + SortedByItem + '_> {
         let start = index
             .checked_sub(1)
@@ -144,6 +154,7 @@ impl JaggedBitset {
     /// let expected = "🭴⠈⠇⣟⢕⠀🭰\n🭴⡀⢟⣏⢕⠀🭰\n🭴⣷⢸⣿⢕⢀🭰\n🭴⢻⢾⣇⢕⠀🭰\n🭴⠘⠘⠛⠋⠀🭰";
     /// assert_eq!(expected, &shown);
     /// ```
+    #[must_use]
     pub const fn braille_trans_display(&self) -> BrailleTransposedDisplay {
         BrailleTransposedDisplay { bitset: self }
     }
@@ -168,6 +179,7 @@ impl JaggedBitset {
     /// ```
     ///
     /// [wikipedia]: https://en.wikipedia.org/wiki/Braille_Patterns
+    #[must_use]
     pub const fn braille_display(&self) -> BrailleDisplay {
         BrailleDisplay { bitset: self }
     }
@@ -183,10 +195,12 @@ pub struct Builder {
 }
 impl Builder {
     /// Initialize a [`Builder`].
+    #[must_use]
     pub fn new() -> Self {
         Self::default()
     }
     /// Initialize a [`Builder`] with capacity rows.
+    #[must_use]
     pub fn with_capacity(cap: usize) -> Self {
         Builder {
             ends: Vec::with_capacity(cap),
@@ -194,10 +208,11 @@ impl Builder {
         }
     }
     /// Create the immutable [`JaggedBitset`], consuming this constructor.
-    pub fn build(self) -> JaggedBitset {
+    #[must_use]
+    pub fn build(&mut self) -> JaggedBitset {
         JaggedBitset {
-            ends: self.ends.into_iter().enumerate().collect(),
-            bits: Bitset(self.bits.0.into_boxed_slice()),
+            ends: self.ends.drain(..).enumerate().collect(),
+            bits: Bitset(std::mem::take(&mut self.bits.0).into_boxed_slice()),
         }
     }
     /// Add a single row to this [`Builder`], returning it.
@@ -217,29 +232,7 @@ impl Builder {
     ///     .with_row([1, 3])
     ///     .build();
     /// ```
-    pub fn with_row(mut self, row: impl IntoIterator<Item = u32>) -> Self {
-        self.add_row(row);
-        self
-    }
-    /// Add a single row to this [`Builder`],
-    /// each item of the iterator is a bit to enable in this row.
-    ///
-    /// # Example
-    ///
-    /// ```rust
-    /// use datazoo::{jagged_bitset, JaggedBitset};
-    ///
-    /// let mut build = jagged_bitset::Builder::with_capacity(7);
-    /// build.add_row([0, 2, 4, 8]);
-    /// build.add_row([63, 12, 2, 3]);
-    /// build.add_row([1, 3, 5, 7, 9, 11]);
-    /// build.add_row([]);
-    /// build.add_row([]);
-    /// build.add_row([]);
-    /// build.add_row([1, 3]);
-    /// let jagged: JaggedBitset = build.build();
-    /// ```
-    pub fn add_row(&mut self, row: impl IntoIterator<Item = u32>) {
+    pub fn with_row(&mut self, row: impl IntoIterator<Item = u32>) -> &mut Self {
         let start = self.ends.last().map_or(0, |i| *i);
 
         let mut row_len = 0;
@@ -255,6 +248,7 @@ impl Builder {
             row_len = row_len.max(bit + 1);
         }
         self.ends.push(start + row_len);
+        self
     }
 }
 
@@ -304,7 +298,7 @@ impl<'a> fmt::Display for BrailleTransposedDisplay<'a> {
         // Note that since this is transposed, height/width are swapped
         let height = self.bitset.max_width() as usize;
         let width = self.bitset.height();
-        display_braille(f, height, width, |x, y| self.bitset.bit(y, x) as u32)
+        display_braille(f, height, width, |x, y| u32::from(self.bitset.bit(y, x)))
     }
 }
 /// Nice printing for [`JaggedBitset`], see [`JaggedBitset::braille_display`] for details.
@@ -321,6 +315,6 @@ impl<'a> fmt::Display for BrailleDisplay<'a> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let width = self.bitset.max_width() as usize;
         let height = self.bitset.height();
-        display_braille(f, height, width, |x, y| self.bitset.bit(x, y) as u32)
+        display_braille(f, height, width, |x, y| u32::from(self.bitset.bit(x, y)))
     }
 }

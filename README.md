@@ -6,9 +6,10 @@ Mostly used for dependency resolution and specialized graph traversal tasks.
 Note that this library doesn't work on 16 bits plateforms.
 If you need support, consider opening an issue.
 
-You probably need to add [`enumset`] to your dependencies to use this crate.
-Due to a rust proc macro limitation, it's impossible to derive `EnumSetType`
-without directly depending on `enumset`.
+## Features
+
+- `enumset`: enables the [`enumset`] dependency and the `EnumBitMatrix`
+  `EnumMultimap` data structures
 
 ## Limitations
 
@@ -17,6 +18,7 @@ without directly depending on `enumset`.
 - Generally assumes `size_of(usize) >= size_of(u32)`, effort is made to use
   `u32::try_from(usize).unwrap()` though!
 - No `#[no_std]` but I don't see why this couldn't be added as a feature
+- depends on `sorted-iter`, can't disable dependency.
 
 ## Data structures
 

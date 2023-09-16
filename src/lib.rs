@@ -1,11 +1,17 @@
-#![warn(clippy::nursery)]
-#![allow(clippy::use_self)]
+// TODO(clean): remove the `cast_possible_truncation` ignore
+#![allow(
+    clippy::use_self,
+    clippy::cast_possible_truncation,
+    clippy::module_name_repetitions
+)]
 #![doc = include_str!("../README.md")]
 
 pub use bitmatrix::BitMatrix;
 pub use bitmultimap::BitMultimap;
 pub use bitset::Bitset;
+#[cfg(feature = "enumset")]
 pub use enum_bitmatrix::EnumBitMatrix;
+#[cfg(feature = "enumset")]
 pub use enum_multimap::EnumMultimap;
 pub use index::Index;
 pub use index_multimap::IndexMultimap;
@@ -22,7 +28,9 @@ pub use sorted_iter::{
 pub mod bitmatrix;
 pub mod bitmultimap;
 pub mod bitset;
+#[cfg(feature = "enumset")]
 pub mod enum_bitmatrix;
+#[cfg(feature = "enumset")]
 pub mod enum_multimap;
 // pub mod index_map;
 pub mod index_multimap;
@@ -59,9 +67,15 @@ impl MostSignificantBit for usize {
 
 /// Get an `usize` from `Self`.
 #[rustfmt::skip]
-#[allow(clippy::inline_always)] // I mean, have you _seen_ what is being inlined?
+#[allow(clippy::inline_always, clippy::unnecessary_cast)] // I mean, have you _seen_ what is being inlined?
 mod index {
-    pub trait Index { fn get(&self) -> usize; fn new(v: usize) -> Self; }
+    /// A type that can be cast into an index.
+    pub trait Index {
+        /// Get the index value of this type.
+        fn get(&self) -> usize;
+        /// Get the type from the index value.
+        fn new(v: usize) -> Self;
+    }
     impl Index for usize { #[inline(always)] fn get(&self) -> usize { *self as usize }#[inline(always)] fn new(v: usize) -> Self { v as Self } }
     impl Index for u8    { #[inline(always)] fn get(&self) -> usize { *self as usize }#[inline(always)] fn new(v: usize) -> Self { v as Self } }
     impl Index for u16   { #[inline(always)] fn get(&self) -> usize { *self as usize }#[inline(always)] fn new(v: usize) -> Self { v as Self } }

@@ -1,13 +1,14 @@
 //! A variable length matrix optimized for read-only rows.
 
-use std::ops::Bound::{Excluded, Included};
-use std::{fmt, marker::PhantomData, mem::size_of, ops::RangeBounds};
+use std::ops::Bound::{Excluded, Included, Unbounded};
+use std::{fmt, marker::PhantomData, ops::RangeBounds};
 
 use thiserror::Error;
 
 use crate::Index;
 
 /// [`JaggedArray::new`] construction error.
+#[allow(missing_docs)]
 #[derive(Debug, Error)]
 pub enum Error {
     /// An `end` in `ends` was lower than a previous one.
@@ -51,8 +52,9 @@ pub enum Error {
 /// ```
 /// use datazoo::JaggedArray;
 ///
+/// let my_strs = vec!["one", "five", "ten", "eleven!", "fifth", "potato", "42", "twenth"];
 /// // This has 9 rows, and all but the last row have a maximum size of 2¹⁶
-/// let compact_array = JaggedArray::<String, u16, [u16; 8]>::new([0; 8], vec![0].into());
+/// let compact_array = JaggedArray::<&str, u16, [u16; 8]>::new([0; 8], my_strs.into());
 /// ```
 #[derive(PartialEq, Eq, Clone)]
 pub struct JaggedArray<V, I: Index = u32, E: AsRef<[I]> = Box<[I]>> {
@@ -64,16 +66,19 @@ pub struct JaggedArray<V, I: Index = u32, E: AsRef<[I]> = Box<[I]>> {
 impl<V, I: Index, E: AsRef<[I]>> JaggedArray<V, I, E> {
     /// How many cells are contained in this `JaggedArray`.
     #[inline]
+    #[must_use]
     pub const fn len(&self) -> usize {
         self.data.len()
     }
     /// Is this array empty (no cells, it has at least one empty row).
     #[inline]
+    #[must_use]
     pub const fn is_empty(&self) -> bool {
         self.data.is_empty()
     }
     /// How many rows this `JaggedArray` has.
     #[inline]
+    #[must_use]
     pub fn height(&self) -> usize {
         self.ends.as_ref().len() + 1
     }
@@ -95,9 +100,9 @@ impl<V, I: Index, E: AsRef<[I]>> JaggedArray<V, I, E> {
     /// ```rust
     /// use datazoo::JaggedArray;
     ///
-    /// let ends = [0, 0, 3, 4, 7, 9, 10, 10];
+    /// let ends = [0_u32, 0, 3, 4, 7, 9, 10, 10];
     /// let data = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 11, 32];
-    /// let jagged = JaggedArray::new(Box::new(ends), Box::new(data)).unwrap();
+    /// let jagged = JaggedArray::new(ends, Box::new(data)).unwrap();
     /// let iliffe = jagged.into_vecs();
     ///
     /// assert_eq!(iliffe.len(), ends.len() + 1);
@@ -119,8 +124,6 @@ impl<V, I: Index, E: AsRef<[I]>> JaggedArray<V, I, E> {
     ///
     /// [`jagged_array::Builder`]: Builder
     pub fn new(ends: E, data: Box<[V]>) -> Result<Self, Error> {
-        assert!(size_of::<usize>() >= size_of::<u32>());
-
         let mut previous_end = I::new(0);
         let last_end = data.len();
         for (i, end) in ends.as_ref().iter().enumerate() {
@@ -144,13 +147,14 @@ impl<V, I: Index, E: AsRef<[I]>> JaggedArray<V, I, E> {
     /// ```rust
     /// use datazoo::JaggedArray;
     ///
-    /// let ends = [0, 0, 3, 4, 7, 9, 10, 10];
+    /// let ends = &[0_u32, 0, 3, 4, 7, 9, 10, 10];
     /// let data = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
-    /// let jagged = JaggedArray::new(Box::new(ends), Box::new(data)).unwrap();
+    /// let jagged = JaggedArray::new(ends, Box::new(data)).unwrap();
     ///
     /// assert_eq!(jagged.get(4), Some(&4));
     /// ```
     #[inline]
+    #[must_use]
     pub fn get(&self, direct_index: usize) -> Option<&V> {
         self.data.get(direct_index)
     }
@@ -161,6 +165,7 @@ impl<V, I: Index, E: AsRef<[I]>> JaggedArray<V, I, E> {
     /// rows is much less costly.
     ///
     /// [Iliffe vector]: https://en.wikipedia.org/wiki/Iliffe_vector
+    #[must_use]
     pub fn into_vecs(self) -> Vec<Vec<V>> {
         let Self { ends, data, .. } = self;
         let ends = ends.as_ref();
@@ -172,7 +177,7 @@ impl<V, I: Index, E: AsRef<[I]>> JaggedArray<V, I, E> {
         // TODO(perf): this is slow as heck because each drain needs to move
         // forward the end of the `data` vec, if we reverse ends here, we can
         // skip the nonsense.
-        for end in ends.iter() {
+        for end in ends {
             let size = end.get() - last_end;
             iliffe.push(data.drain(..size).collect());
             last_end = end.get();
@@ -182,7 +187,9 @@ impl<V, I: Index, E: AsRef<[I]>> JaggedArray<V, I, E> {
     }
     /// Get slice to row at given `index`.
     ///
+    /// # Panics
     /// See [`JaggedArray::get_row`] for an example and a non-panicking version.
+    #[must_use]
     pub fn row(&self, index: usize) -> &[V] {
         self.get_row(index).unwrap()
     }
@@ -196,16 +203,26 @@ impl<V, I: Index, E: AsRef<[I]>> JaggedArray<V, I, E> {
     ///     .add_row([1, 2, 3]).add_row([4, 5, 6]).add_row([]).add_row([7, 8, 9])
     ///     .build();
     ///
-    /// assert_eq!(array.row(1), Some(&[4, 5, 6]));
-    /// assert_eq!(array.row(4), None);
+    /// assert_eq!(array.get_row(1), Some(&[4, 5, 6][..]));
+    /// assert_eq!(array.get_row(4), None);
     /// ```
+    #[must_use]
     pub fn get_row(&self, index: usize) -> Option<&[V]> {
-        self.get_rows(index..index + 1)
+        self.get_rows(index..=index)
     }
+    /// Same as [`JaggedArray::row`], but for a range of rows instead of individual rows.
+    ///
+    /// See more details at [`JaggedArray::get_rows`].
+    ///
+    /// # Panics
+    /// If the range is out of bounds.
+    #[must_use]
     pub fn rows(&self, range: impl RangeBounds<usize>) -> &[V] {
         self.get_rows(range).unwrap()
     }
     /// Same as [`JaggedArray::get_row`], but for a range of rows instead of individual rows.
+    ///
+    /// Returns `None` if the range is out of bound.
     ///
     /// # Example
     /// ```rust
@@ -213,10 +230,12 @@ impl<V, I: Index, E: AsRef<[I]>> JaggedArray<V, I, E> {
     ///     .add_row([1, 2, 3]).add_row([4, 5, 6]).add_row([]).add_row([7, 8, 9])
     ///     .build();
     ///
-    /// assert_eq!(array.row(1), Some(&[4, 5, 6]));
-    /// assert_eq!(array.row(4), None);
+    /// assert_eq!(array.get_rows(..), Some(&[1, 2, 3, 4, 5, 6, 7, 8, 9][..]));
+    /// assert_eq!(array.get_rows(2..), Some(&[7, 8, 9][..]));
+    /// assert_eq!(array.get_rows(2..3), Some(&[][..]));
     /// ```
     #[inline]
+    #[must_use]
     pub fn get_rows(&self, range: impl RangeBounds<usize>) -> Option<&[V]> {
         let ends = self.ends.as_ref();
         let get_end = |i| match i {
@@ -225,23 +244,23 @@ impl<V, I: Index, E: AsRef<[I]>> JaggedArray<V, I, E> {
             n => ends.get(n).map(I::get),
         };
         let start = match range.start_bound() {
-            Included(0) => 0,
+            Included(0) | Unbounded => 0,
             Included(&start) => get_end(start - 1)?,
             Excluded(&start) => get_end(start)?,
-            _ => 0,
         };
         let end = match range.end_bound() {
             Excluded(0) => 0,
             Excluded(&end) => get_end(end - 1)?,
             Included(&end) => get_end(end)?,
-            _ => self.data.len(),
+            Unbounded => self.data.len(),
         };
         if start > end {
             return None;
         }
         self.data.get(start..end)
     }
-    pub fn rows_iter(&self) -> JaggedArrayRows<V, I, E> {
+    /// Iterate over every individual row slices of this `JaggedArray`.
+    pub const fn rows_iter(&self) -> JaggedArrayRows<V, I, E> {
         JaggedArrayRows { array: self, row: 0 }
     }
 }
@@ -259,6 +278,7 @@ impl<V: fmt::Debug, I: Index, E: AsRef<[I]>> fmt::Debug for JaggedArray<V, I, E>
 // `JaggedArrayRows`
 //
 
+/// Iterator over rows of a [`JaggedArray`].
 pub struct JaggedArrayRows<'j, V, I: Index = u32, E: AsRef<[I]> = Box<[I]>> {
     array: &'j JaggedArray<V, I, E>,
     row: usize,
@@ -272,15 +292,38 @@ impl<'j, V, I: Index, E: AsRef<[I]>> Iterator for JaggedArrayRows<'j, V, I, E> {
     }
 }
 
+//
+// `Builder`
+//
+
+/// Constructor for a [`JaggedArray`].
+///
+/// Note that only `JaggedArray`s with a `Box<[I]>` ends buffer (`E` type
+/// parameter) can be constructed from a `Builder`.
+///
+/// To build a `JaggedArray` with arbitrary ends buffer, use [`JaggedArray::new`].
 pub struct Builder<V, I = u32> {
     last_end: Option<I>,
     ends: Vec<I>,
     data: Vec<V>,
 }
-impl<V, I: Index> Builder<V, I> {
-    pub fn new() -> Self {
+impl<V, I: Index> Default for Builder<V, I> {
+    fn default() -> Self {
         Builder { last_end: None, ends: Vec::new(), data: Vec::new() }
     }
+}
+impl<V, I: Index> Builder<V, I> {
+    /// Create a new [`JaggedArray`] builder.
+    ///
+    /// Use [`Self::add_row`] to add rows, and [`Self::build`] to get the `JaggedArray`.
+    #[must_use]
+    pub fn new() -> Self {
+        Self::default()
+    }
+    /// Create a new [`JaggedArray`] builder with pre-allocated buffers.
+    ///
+    /// Use [`Self::add_row`] to add rows, and [`Self::build`] to get the `JaggedArray`.
+    #[must_use]
     pub fn new_with_capacity(row_count: usize, data_len: usize) -> Self {
         Builder {
             last_end: None,
@@ -288,10 +331,16 @@ impl<V, I: Index> Builder<V, I> {
             data: Vec::with_capacity(data_len),
         }
     }
+    /// Add a single element to the current row.
+    ///
+    /// Use [`Self::add_row`] to "commit" elements to a row, for example with
+    /// `builder.add_row(std::iter::empty)`.
     pub fn add_elem(&mut self, elem: V) -> &mut Self {
         self.data.push(elem);
         self
     }
+    /// Add all elements in `row` to the current row and mark it as a distinct
+    /// row in the resulting [`JaggedArray`].
     pub fn add_row(&mut self, row: impl IntoIterator<Item = V>) -> &mut Self {
         self.data.extend(row);
         if let Some(last_end) = self.last_end.replace(I::new(self.data.len())) {
@@ -299,6 +348,8 @@ impl<V, I: Index> Builder<V, I> {
         }
         self
     }
+    /// Complete this [`JaggedArray`], consuming this `Builder`.
+    #[must_use]
     pub fn build(&mut self) -> JaggedArray<V, I> {
         let ends = std::mem::take(&mut self.ends);
         let data = std::mem::take(&mut self.data);
