@@ -25,6 +25,8 @@ pub enum Error {
 }
 
 /// An extensible (ie: can add more rows) [jagged array].
+///
+/// [jagged array]: https://en.wikipedia.org/wiki/Jagged_array
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct JaggedVec<T> {
     ends: Vec<u32>,
@@ -62,7 +64,7 @@ impl<T> JaggedVec<T> {
     /// # Example
     ///
     /// ```rust
-    /// use cuicui_datazoo::JaggedVec;
+    /// use datazoo::JaggedVec;
     ///
     /// let ends = [0, 0, 3, 4, 7, 9, 10, 10]; // len = 8
     /// let data = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 11, 23];
@@ -108,7 +110,7 @@ impl<T> JaggedVec<T> {
     /// # Example
     ///
     /// ```rust
-    /// use cuicui_datazoo::JaggedVec;
+    /// use datazoo::JaggedVec;
     ///
     /// let ends = [0, 0, 3, 4, 7, 9, 10, 10];
     /// let data = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
@@ -134,7 +136,7 @@ impl<T> JaggedVec<T> {
     /// # Example
     ///
     /// ```rust
-    /// use cuicui_datazoo::JaggedVec;
+    /// use datazoo::JaggedVec;
     ///
     /// let ends = [0, 0, 3, 4, 7, 9, 10, 10];
     /// let data = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];

@@ -18,7 +18,7 @@ use crate::{bitset::Ones, div_ceil, safe_n_mask, Bitset, Index, MostSignificantB
 /// # Example
 ///
 /// ```
-/// use cuicui_datazoo::{Index, RawIndexMap, raw_index_map::ValueEq};
+/// use datazoo::{Index, RawIndexMap, raw_index_map::ValueEq};
 ///
 /// #[derive(Debug, Clone, PartialEq)]
 /// struct MyV(u32);
@@ -72,7 +72,7 @@ pub enum ValueEq {}
 /// # Example
 ///
 /// ```
-/// use cuicui_datazoo::RawIndexMap;
+/// use datazoo::RawIndexMap;
 ///
 /// let mut map = RawIndexMap::<usize, u32>::with_capacity(200, 100);
 ///
@@ -237,7 +237,7 @@ impl<K: Index, V: From<u32>, Eq> RawIndexMap<K, V, Eq> {
     /// # Example
     ///
     /// ```
-    /// # use cuicui_datazoo::RawIndexMap;
+    /// # use datazoo::RawIndexMap;
     /// let mut map = RawIndexMap::<usize, u32>::with_capacity(200, 100);
     /// assert_eq!(map.get(&32), None);
     ///

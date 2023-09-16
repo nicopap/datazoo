@@ -46,7 +46,7 @@ use crate::{sorted, BitMatrix};
 /// ## Example
 ///
 /// ```rust
-/// use cuicui_datazoo::BitMultimap;
+/// use datazoo::BitMultimap;
 ///
 /// let associations: Vec<(char, i64)> = vec![
 ///     ('E', -1),

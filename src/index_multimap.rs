@@ -27,7 +27,7 @@ use crate::{BitMatrix, Index};
 /// # Example
 ///
 /// ```
-/// use cuicui_datazoo::IndexMultimap;
+/// use datazoo::IndexMultimap;
 ///
 /// let multimap: IndexMultimap<usize, usize> = [
 ///     (0, 1), (0, 5), (0, 2), (0, 2),

@@ -1,12 +1,12 @@
 [package]
-name = "cuicui_datazoo"
+name = "datazoo"
 authors = ["Nicola Papale"]
-description = "Data structures used in cuicui"
+description = "Bitset and jagged array data structures"
 license = "MIT OR Apache-2.0 OR Zlib"
 readme = "README.md"
-keywords = ["multimap", "bitmap", "jagged array", "enummultimap"]
+keywords = ["multimap", "bitset", "bitmap", "jagged array", "enummultimap"]
 categories = ["data-structures"]
-repository = "https://github.com/nicopap/cuicui"
+repository = "https://github.com/nicopap/datazoo"
 version = "0.1.0"
 edition = "2021"
 

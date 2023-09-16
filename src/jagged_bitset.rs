@@ -15,7 +15,7 @@ use crate::{div_ceil, Bitset, RawIndexMap};
 /// # Example
 ///
 /// ```rust
-/// use cuicui_datazoo::jagged_bitset;
+/// use datazoo::jagged_bitset;
 ///
 /// let jagged = jagged_bitset::Builder::with_capacity(7)
 ///     .with_row([0, 2, 4, 8])
@@ -126,7 +126,7 @@ impl JaggedBitset {
     ///
     /// ```
     /// # use pretty_assertions::assert_eq;
-    /// use cuicui_datazoo::jagged_bitset;
+    /// use datazoo::jagged_bitset;
     ///
     /// let jagged = jagged_bitset::Builder::with_capacity(10)
     ///     .with_row([                     7, 8, 9, 10, 11, 12, 13                ])
@@ -154,7 +154,7 @@ impl JaggedBitset {
     ///
     /// ```
     /// # use pretty_assertions::assert_eq;
-    /// use cuicui_datazoo::jagged_bitset;
+    /// use datazoo::jagged_bitset;
     ///
     /// let jagged = jagged_bitset::Builder::with_capacity(10)
     ///     .with_row([                     7, 8, 9, 10, 11, 12, 13                ])
@@ -205,7 +205,7 @@ impl Builder {
     /// # Example
     ///
     /// ```rust
-    /// use cuicui_datazoo::{jagged_bitset, JaggedBitset};
+    /// use datazoo::{jagged_bitset, JaggedBitset};
     ///
     /// let jagged: JaggedBitset = jagged_bitset::Builder::with_capacity(7)
     ///     .with_row([0, 2, 4, 8])
@@ -227,7 +227,7 @@ impl Builder {
     /// # Example
     ///
     /// ```rust
-    /// use cuicui_datazoo::{jagged_bitset, JaggedBitset};
+    /// use datazoo::{jagged_bitset, JaggedBitset};
     ///
     /// let mut build = jagged_bitset::Builder::with_capacity(7);
     /// build.add_row([0, 2, 4, 8]);

@@ -216,3 +216,16 @@ fn from_all_bits() {
 
     assert_eq!(Bitset(bits.0.to_vec()), ones.collect());
 }
+#[test]
+fn exact_size_len() {
+    let blocks = blocks();
+
+    let actual = blocks.ones_in_range(16..31);
+    assert_eq!(7, actual.len());
+
+    let actual = blocks.ones_in_range(16..32);
+    assert_eq!(8, actual.len());
+
+    let actual = blocks.ones_in_range(64..80);
+    assert_eq!(12, actual.len());
+}

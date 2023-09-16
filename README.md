@@ -25,6 +25,14 @@ and combination thereof.
 
 See `docrs` documentation for details.
 
+## License
+
+You may use `datazoo` under any of the following licenses:
+
+- ZLib
+- MIT
+- Apache 2.0
+
 [`enumset`]: https://lib.rs/crates/enumset
 [multimaps]: https://en.wikipedia.org/wiki/Multimap
 [jagged arrays]: https://en.wikipedia.org/wiki/Jagged_array

@@ -2,6 +2,23 @@
 #![allow(clippy::use_self)]
 #![doc = include_str!("../README.md")]
 
+pub use bitmatrix::BitMatrix;
+pub use bitmultimap::BitMultimap;
+pub use bitset::Bitset;
+pub use enum_bitmatrix::EnumBitMatrix;
+pub use enum_multimap::EnumMultimap;
+pub use index::Index;
+pub use index_multimap::IndexMultimap;
+pub use jagged_array::JaggedArray;
+pub use jagged_bitset::JaggedBitset;
+pub use jagged_vec::JaggedVec;
+pub use raw_index_map::RawIndexMap;
+pub use sorted_iter::assume::{AssumeSortedByItemExt, AssumeSortedByKeyExt};
+pub use sorted_iter::{
+    sorted_iterator::SortedByItem, sorted_pair_iterator::SortedByKey, SortedIterator,
+    SortedPairIterator,
+};
+
 pub mod bitmatrix;
 pub mod bitmultimap;
 pub mod bitset;
@@ -9,8 +26,8 @@ pub mod enum_bitmatrix;
 pub mod enum_multimap;
 // pub mod index_map;
 pub mod index_multimap;
+pub mod jagged_array;
 pub mod jagged_bitset;
-pub mod jagged_const_row_array;
 pub mod jagged_vec;
 pub mod raw_index_map;
 pub mod sorted;
@@ -42,29 +59,16 @@ impl MostSignificantBit for usize {
 
 /// Get an `usize` from `Self`.
 #[rustfmt::skip]
+#[allow(clippy::inline_always)] // I mean, have you _seen_ what is being inlined?
 mod index {
-    pub trait Index { fn get(&self) -> usize; }
-    impl Index for usize { fn get(&self) -> usize { *self } }
-    impl Index for u32 { fn get(&self) -> usize { *self as usize } }
-    impl Index for u64 { fn get(&self) -> usize { *self as usize } }
+    pub trait Index { fn get(&self) -> usize; fn new(v: usize) -> Self; }
+    impl Index for usize { #[inline(always)] fn get(&self) -> usize { *self as usize }#[inline(always)] fn new(v: usize) -> Self { v as Self } }
+    impl Index for u8    { #[inline(always)] fn get(&self) -> usize { *self as usize }#[inline(always)] fn new(v: usize) -> Self { v as Self } }
+    impl Index for u16   { #[inline(always)] fn get(&self) -> usize { *self as usize }#[inline(always)] fn new(v: usize) -> Self { v as Self } }
+    impl Index for u32   { #[inline(always)] fn get(&self) -> usize { *self as usize }#[inline(always)] fn new(v: usize) -> Self { v as Self } }
+    impl Index for u64   { #[inline(always)] fn get(&self) -> usize { *self as usize }#[inline(always)] fn new(v: usize) -> Self { v as Self } }
 }
 
-pub use bitmatrix::BitMatrix;
-pub use bitmultimap::BitMultimap;
-pub use bitset::Bitset;
-pub use enum_bitmatrix::EnumBitMatrix;
-pub use enum_multimap::EnumMultimap;
-pub use index::Index;
-pub use index_multimap::IndexMultimap;
-pub use jagged_bitset::JaggedBitset;
-pub use jagged_const_row_array::JaggedConstRowArray;
-pub use jagged_vec::JaggedVec;
-pub use raw_index_map::RawIndexMap;
-pub use sorted_iter::assume::{AssumeSortedByItemExt, AssumeSortedByKeyExt};
-pub use sorted_iter::{
-    sorted_iterator::SortedByItem, sorted_pair_iterator::SortedByKey, SortedIterator,
-    SortedPairIterator,
-};
 #[cfg(test)]
 mod tests {
     use super::*;
