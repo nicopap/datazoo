@@ -25,7 +25,7 @@ If you need support, consider opening an issue.
 This is a collection of [multimaps], [jagged arrays], [bit sets],
 and combination thereof.
 
-See `docrs` documentation for details.
+See `rustdoc` documentation for details.
 
 ## License
 
