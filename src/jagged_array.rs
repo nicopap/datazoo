@@ -293,6 +293,13 @@ pub struct JaggedArrayRows<
     array: &'j JaggedArray<V, I, E, VS>,
     row: usize,
 }
+
+impl<'j, V, I: Index, E: AsRef<[I]>, VS: AsRef<[V]>> Clone for JaggedArrayRows<'j, V, I, E, VS> {
+    fn clone(&self) -> Self {
+        Self { array: self.array, row: self.row }
+    }
+}
+
 impl<'j, V, I: Index, E: AsRef<[I]>> Iterator for JaggedArrayRows<'j, V, I, E> {
     type Item = &'j [V];
 

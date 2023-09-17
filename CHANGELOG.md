@@ -9,6 +9,9 @@ using the method on arbitrary types.
 - `Vec<u32>`
 - `SmallVec<[u32; N]>` (behind feature flag)
 
+Add `JaggedArrayRows: Clone`. `Copy` is not implemented, because `JaggedArrayRows`
+is an iterator, and `Copy` iterators are confusing (it's also hard to implement).
+
 # 0.4.0
 
 Remove `From<usize>` bound on `K` in `RawIndexMap`. It was unneeded, because
