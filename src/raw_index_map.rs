@@ -295,21 +295,15 @@ impl<K: Index, V: From<u32>, Eq> RawIndexMap<K, V, Eq> {
     }
     /// Iterate over all values.
     #[inline]
-    pub fn iter(&self) -> impl Iterator<Item = (K, V)> + '_
-    where
-        K: From<usize>,
-    {
-        (0..self.capacity()).filter_map(|k| self.get_index(k).map(|v| (K::from(k), v)))
+    pub fn iter(&self) -> impl Iterator<Item = (K, V)> + '_ {
+        (0..self.capacity()).filter_map(|k| self.get_index(k).map(|v| (K::new(k), v)))
     }
     /// Iterate over all values (reversed).
     #[inline]
-    pub fn rev_iter(&self) -> impl Iterator<Item = (K, V)> + '_
-    where
-        K: From<usize>,
-    {
+    pub fn rev_iter(&self) -> impl Iterator<Item = (K, V)> + '_ {
         (0..self.capacity())
             .rev()
-            .filter_map(|k| self.get_index(k).map(|v| (K::from(k), v)))
+            .filter_map(|k| self.get_index(k).map(|v| (K::new(k), v)))
     }
 }
 impl<K: Index, V: From<u32>> PartialEq for RawIndexMap<K, V> {
@@ -359,7 +353,7 @@ impl<K: Index, V: From<u32> + Index> FromIterator<(K, V)> for RawIndexMap<K, V> 
 }
 impl<K, V, Eq> fmt::Debug for RawIndexMap<K, V, Eq>
 where
-    K: Index + fmt::Debug + From<usize>,
+    K: Index + fmt::Debug,
     V: From<u32> + fmt::Debug,
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
