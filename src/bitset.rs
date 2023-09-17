@@ -113,9 +113,11 @@ pub trait ExtendBlocks: AsMut<[u32]> + AsRef<[u32]> {
 
 impl ExtendBlocks for Box<[u32]> {
     /// Extend this `Box<[u32]>` to `(old_len + extra_blocks).next_pow2()`.
+    ///
+    /// The extension algorithm mirrors that of the standard library `Vec`.
     fn extend_blocks(&mut self, extra_blocks: usize) {
         let old_len = self.len();
-        let new_len = (old_len + extra_blocks).next_power_of_two();
+        let new_len = (old_len + extra_blocks).next_power_of_two().max(8);
         let mut self_vec = std::mem::take(self).into_vec();
 
         self_vec.extend(iter::repeat(0).take(new_len - old_len));
