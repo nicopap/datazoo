@@ -95,10 +95,50 @@ impl BlockT for u32 {
 #[derive(Clone, Copy, Default, PartialEq, Eq)]
 pub struct Bitset<B: AsRef<[u32]>>(pub B);
 
-impl Bitset<Vec<u32>> {
-    /// Enables bit at position `bit`, extending the vector if necessary.
+/// A dynamic size slice allowing mutable extension to its own size.
+///
+/// This is used by the [`Bitset::enable_bit_extending`] method.
+///
+/// This is implemented on `Vec`, and `SmallVec` with the `smallvec` feature
+/// enabled.
+///
+/// This is also implemented for `Box<[u32]>`. Since `Bitset` doesn't
+/// make the distinction between out of bound and disabled, it makes always more
+/// sense to use `Box<[u32]>` over `Vec<u32>`.
+pub trait ExtendBlocks: AsMut<[u32]> + AsRef<[u32]> {
+    /// Add `extra_blocks` of zeroed `u32`s to this slice, so that the new length
+    /// is `self.len() + extra_blocks`.
+    fn extend_blocks(&mut self, extra_blocks: usize);
+}
+
+impl ExtendBlocks for Box<[u32]> {
+    /// Extend this `Box<[u32]>` to `(old_len + extra_blocks).next_pow2()`.
+    fn extend_blocks(&mut self, extra_blocks: usize) {
+        let old_len = self.len();
+        let new_len = (old_len + extra_blocks).next_power_of_two();
+        let mut self_vec = std::mem::take(self).into_vec();
+
+        self_vec.extend(iter::repeat(0).take(new_len - old_len));
+        *self = self_vec.into();
+    }
+}
+
+impl ExtendBlocks for Vec<u32> {
+    fn extend_blocks(&mut self, extra_blocks: usize) {
+        self.extend(iter::repeat(0).take(extra_blocks));
+    }
+}
+#[cfg(feature = "smallvec")]
+impl<A: smallvec::Array<Item = u32>> ExtendBlocks for smallvec::SmallVec<A> {
+    fn extend_blocks(&mut self, extra_blocks: usize) {
+        self.extend(iter::repeat(0).take(extra_blocks));
+    }
+}
+
+impl<B: ExtendBlocks> Bitset<B> {
+    /// Enables bit at position `bit`, extending `B` if necessary.
     ///
-    /// When [`Bitset::bit(bit)`] will be called next, it will always be `true`.
+    /// When [`Bitset::bit`] will be called next, it will always be `true`.
     ///
     /// # Example
     ///
@@ -115,23 +155,35 @@ impl Bitset<Vec<u32>> {
     /// assert!(as_vec.bit(64));
     /// assert_eq!(as_vec.0.len(), 3);
     /// ```
+    /// Note that you can use this with `Box<[u32]>`:
+    /// ```
+    /// # use datazoo::Bitset;
+    /// let mut as_box = Bitset(Box::<[u32]>::default());
+    /// as_box.enable_bit_extending(73);
+    /// assert!(as_box.bit(73));
+    /// assert!(as_box.enable_bit(64).is_some());
+    /// assert!(as_box.bit(64));
+    /// ```
     pub fn enable_bit_extending(&mut self, bit: usize) {
         let block = bit / u32::BITS64;
         let offset = bit % u32::BITS64;
 
-        if block >= self.0.len() {
-            let extra_blocks = block - self.0.len() + 1;
-            self.0.extend(iter::repeat(0).take(extra_blocks));
+        let blocks_len = self.0.as_ref().len();
+        if block >= blocks_len {
+            let extra_blocks = block - blocks_len + 1;
+            self.0.extend_blocks(extra_blocks);
         }
-        self.0[block] |= 1 << offset;
+        let blocks = self.0.as_mut();
+        blocks[block] |= 1 << offset;
     }
 }
+
 impl<B: AsRef<[u32]> + AsMut<[u32]>> Bitset<B> {
     /// Enables bit at position `bit`.
     ///
     /// Returns `None` and does nothing if `bit` is out of range.
     ///
-    /// When [`Bitset::bit(bit)`] will be called next, it will be `true`
+    /// When [`Bitset::bit`] will be called next, it will be `true`
     /// if this returned `Some`.
     ///
     /// # Example
@@ -161,7 +213,7 @@ impl<B: AsRef<[u32]> + AsMut<[u32]>> Bitset<B> {
     ///
     /// Returns `None` and does nothing if `bit` is out of range.
     ///
-    /// When [`Bitset::bit(bit)`] will be called next, it will always return `false`.
+    /// When [`Bitset::bit`] will be called next, it will always return `false`.
     ///
     /// # Example
     ///
