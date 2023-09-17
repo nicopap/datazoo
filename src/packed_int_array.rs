@@ -1,15 +1,15 @@
-//! An [associative arrays] of small integers.
+//! An [associative array] of small integers.
 //!
-//! [associative arrays]: https://en.wikipedia.org/wiki/Associative_array
+//! [associative array]: https://en.wikipedia.org/wiki/Associative_array
 
 use std::{fmt, marker::PhantomData};
 
 use crate::{div_ceil, safe_n_mask, Bitset, Index, MostSignificantBit};
 
-/// Parametrize [`RawIndexMap`] to implement equality in terms of `V` rather
+/// Parametrize [`PackedIntArray`] to implement equality in terms of `V` rather
 /// than raw bit value.
 ///
-/// The default `RawIndexMap` equality just compares the values as they are stored
+/// The default `PackedIntArray` equality just compares the values as they are stored
 /// in the indexmap.
 ///
 /// However, if your `V`'s implementation of equality differs from basic integer
@@ -18,14 +18,14 @@ use crate::{div_ceil, safe_n_mask, Bitset, Index, MostSignificantBit};
 /// # Example
 ///
 /// ```
-/// use datazoo::{Index, RawIndexMap, raw_index_map::ValueEq};
+/// use datazoo::{Index, PackedIntArray, packed_int_array::ValueEq};
 ///
 /// #[derive(Debug, Clone, PartialEq)]
 /// struct MyV(u32);
 /// impl From<u32> for MyV { fn from(v: u32) -> Self {MyV(v)} }
 /// impl Index for MyV { fn get(&self) -> usize {self.0 as usize} fn new(v: usize) -> Self { MyV(v as u32) } }
 ///
-/// let mut map = RawIndexMap::<usize, MyV, ValueEq>::with_capacity(32, 32);
+/// let mut map = PackedIntArray::<usize, MyV, ValueEq>::with_capacity(32, 32);
 ///
 /// map.set(&1, &MyV(2));
 /// map.set(&0, &MyV(5));
@@ -44,26 +44,55 @@ use crate::{div_ceil, safe_n_mask, Bitset, Index, MostSignificantBit};
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum ValueEq {}
 
-/// An [associative arrays] of small integers.
+/// An [associative array] of small integers.
 ///
-/// This is a 1-to-(1|0) mapping, see [`IndexMultimap`] for 1-to-N mapping.
+/// A 1-to-(1|0) mapping of integers to integers, in packed storage.
+/// It might help to think of this as a very compact `Vec<Option<V>>`.
 ///
-/// The size in bytes of this `struct` is the lowest multiple of 4 over
-/// `max(K) * log₂(max(V) + 1) / 8`
+/// See [`IndexMultimap`] for 1-to-N mapping.
 ///
-/// You'll notice the size is not dependent on the number of values stored
-/// (in fact, [`RawIndexMap`] **does not** store any value). But rather the
-/// values being stored themselves.
+/// # Design
 ///
-/// It is not recommended to use this data structure if you expect to have
-/// large values in your key/value space.
+/// A typical array of integers (consider `Vec<u32>`) takes 32 bits per entry,
+/// a `PackedIntArray` only takes as much bit per entry as the largest entry.
 ///
-/// [`RawIndexMap`] might be a good solution if you have an index to a small
-/// array or an incrementing counter.
+/// ```text
+/// // vec![12_u32, 2, 5, 8, 10, 9];
+/// // size in memory: 24 stack bytes + 24 heap bytes
+/// [cap; len; ptr] -> [ // binary
+/// 0000_0000_0000_0000_0000_0000_0000_1100 // 12
+/// 0000_0000_0000_0000_0000_0000_0000_0010 // 2
+/// 0000_0000_0000_0000_0000_0000_0000_0101 // 5
+/// 0000_0000_0000_0000_0000_0000_0000_1000 // 8
+/// 0000_0000_0000_0000_0000_0000_0000_1010 // 10
+/// 0000_0000_0000_0000_0000_0000_0000_1001 // 9
+/// ]
+/// // PackedIntArray<u32, u32> = [12, 2, 5, 8, 10, 9];
+/// // size in memory: 24 stack bytes + 4 heap bytes
+/// [value_width; len; ptr] -> [ // binary
+/// 1100 // 12
+/// 0010 // 2
+/// 0101 // 5
+/// 1000 // 8
+/// 1010 // 10
+/// 1001 // 9
+/// 1111 // We use [u32] for storage, byte count is always
+/// 1111 // multiple of 4, empty trailing slots are filled with 1s.
+/// ]
+/// ```
+///
+/// Now, take `Vec<Option<u32>>`. `[12, 2, 5, 8, 10, 9].map(Some)` takes twice
+/// as much heap space. 48 bytes! `PackedIntArray` has special handling of
+/// empty slots, so they take exactly as much space as filled slots.
+///
+/// We went from 48 bytes to 4 bytes. We basically can divide by **ten**
+/// memory usage.
+///
+/// Note that while this may take less memory, it requires much more processing.
 ///
 /// # `PartialEq` implementation
 ///
-/// The default `RawIndexMap` equality just compares the values as they are stored
+/// The default `PackedIntArray` equality just compares the values as they are stored
 /// in the indexmap.
 ///
 /// However, if your `V`'s implementation of equality differs from basic integer
@@ -72,9 +101,9 @@ pub enum ValueEq {}
 /// # Example
 ///
 /// ```
-/// use datazoo::RawIndexMap;
+/// use datazoo::PackedIntArray;
 ///
-/// let mut map = RawIndexMap::<usize, u32>::with_capacity(200, 100);
+/// let mut map = PackedIntArray::<usize, u32>::with_capacity(200, 100);
 ///
 /// map.set(&10, &2);
 /// map.set(&11, &5);
@@ -111,7 +140,7 @@ pub enum ValueEq {}
 /// assert_eq!(map.get(&200), Some(111));
 ///
 /// // It is also possible to use `collect` to create an `IndexMap`
-/// let other_map: RawIndexMap<usize, u32> = [
+/// let other_map: PackedIntArray<usize, u32> = [
 ///     (10, 2),
 ///     (11, 5),
 ///     (19, 9),
@@ -128,8 +157,9 @@ pub enum ValueEq {}
 /// ```
 ///
 /// [`IndexMultimap`]: crate::IndexMultimap
+/// [associative array]: https://en.wikipedia.org/wiki/Associative_array
 #[derive(Clone)]
-pub struct RawIndexMap<K: Index, V: From<u32>, Eq = ()> {
+pub struct PackedIntArray<K: Index, V: From<u32>, Eq = ()> {
     /// A matrix of `max(K)` rows of `log₂(max(V) + 1)` bits, each row represents
     /// a single index.
     ///
@@ -142,17 +172,17 @@ pub struct RawIndexMap<K: Index, V: From<u32>, Eq = ()> {
     value_width: usize,
     _tys: PhantomData<fn(K, V, Eq)>,
 }
-impl<K: Index, V: From<u32>, Eq> Default for RawIndexMap<K, V, Eq> {
+impl<K: Index, V: From<u32>, Eq> Default for PackedIntArray<K, V, Eq> {
     fn default() -> Self {
-        RawIndexMap {
+        PackedIntArray {
             indices: Bitset(Vec::new().into_boxed_slice()),
             value_width: 0,
             _tys: PhantomData,
         }
     }
 }
-impl<K: Index, V: From<u32>, Eq> RawIndexMap<K, V, Eq> {
-    /// Initialize a [`RawIndexMap`] with static size.
+impl<K: Index, V: From<u32>, Eq> PackedIntArray<K, V, Eq> {
+    /// Initialize a [`PackedIntArray`] with static size.
     ///
     /// You can always insert:
     /// - Keys: `(0 ..= key_len-1)`
@@ -182,13 +212,13 @@ impl<K: Index, V: From<u32>, Eq> RawIndexMap<K, V, Eq> {
         let vwidth = value_len.most_significant_bit() as usize;
         let bit_size = vwidth * key_len;
         let u32_size = div_ceil(bit_size, u32::BITS as usize);
-        RawIndexMap {
+        PackedIntArray {
             indices: Bitset(vec![u32::MAX; u32_size].into_boxed_slice()),
             value_width: vwidth,
             _tys: PhantomData,
         }
     }
-    /// How many keys at most  this can contain?
+    /// How many keys at most this contains.
     ///
     /// Unlike a `HashMap`, the capacity also represents the upper
     /// limit of key values (all keys are smaller than `capacity`).
@@ -239,8 +269,8 @@ impl<K: Index, V: From<u32>, Eq> RawIndexMap<K, V, Eq> {
     /// # Example
     ///
     /// ```
-    /// # use datazoo::RawIndexMap;
-    /// let mut map = RawIndexMap::<usize, u32>::with_capacity(200, 100);
+    /// # use datazoo::PackedIntArray;
+    /// let mut map = PackedIntArray::<usize, u32>::with_capacity(200, 100);
     /// assert_eq!(map.get(&32), None);
     ///
     /// map.set(&32, &28);
@@ -306,7 +336,7 @@ impl<K: Index, V: From<u32>, Eq> RawIndexMap<K, V, Eq> {
             .filter_map(|k| self.get_index(k).map(|v| (K::new(k), v)))
     }
 }
-impl<K: Index, V: From<u32>> PartialEq for RawIndexMap<K, V> {
+impl<K: Index, V: From<u32>> PartialEq for PackedIntArray<K, V> {
     fn eq(&self, other: &Self) -> bool {
         let min_len = self.indices.0.len().min(other.indices.0.len());
         let largest = if self.indices.0.len() == min_len { other } else { self };
@@ -316,7 +346,7 @@ impl<K: Index, V: From<u32>> PartialEq for RawIndexMap<K, V> {
         common_identical && no_more
     }
 }
-impl<K: Index, V: From<u32> + PartialEq> PartialEq for RawIndexMap<K, V, ValueEq> {
+impl<K: Index, V: From<u32> + PartialEq> PartialEq for PackedIntArray<K, V, ValueEq> {
     #[inline]
     fn eq(&self, other: &Self) -> bool {
         let max = self.capacity().max(other.capacity());
@@ -324,8 +354,8 @@ impl<K: Index, V: From<u32> + PartialEq> PartialEq for RawIndexMap<K, V, ValueEq
     }
 }
 
-impl<K: Index, V: From<u32> + Index> FromIterator<(K, V)> for RawIndexMap<K, V> {
-    /// Create a [`RawIndexMap`] where value at `k` will be `value` in `(key, value)`
+impl<K: Index, V: From<u32> + Index> FromIterator<(K, V)> for PackedIntArray<K, V> {
+    /// Create a [`PackedIntArray`] where value at `k` will be `value` in `(key, value)`
     /// the last item where `key == k`.
     ///
     /// Note that all `K` and `V` will be dropped.
@@ -343,7 +373,7 @@ impl<K: Index, V: From<u32> + Index> FromIterator<(K, V)> for RawIndexMap<K, V> 
             .collect::<Box<[_]>>();
 
         let max_value = u32::try_from(max_value).unwrap();
-        let mut map = RawIndexMap::with_capacity(max_key, max_value);
+        let mut map = PackedIntArray::with_capacity(max_key, max_value);
 
         for (key, value) in &*key_values {
             map.set(key, value);
@@ -351,7 +381,7 @@ impl<K: Index, V: From<u32> + Index> FromIterator<(K, V)> for RawIndexMap<K, V> 
         map
     }
 }
-impl<K, V, Eq> fmt::Debug for RawIndexMap<K, V, Eq>
+impl<K, V, Eq> fmt::Debug for PackedIntArray<K, V, Eq>
 where
     K: Index + fmt::Debug,
     V: From<u32> + fmt::Debug,
@@ -373,14 +403,14 @@ mod tests {
     fn capacity() {
         let max_value = 127_u32;
         let max_key = 32 * 7;
-        let map = RawIndexMap::<usize, u32>::with_capacity(max_key, max_value);
+        let map = PackedIntArray::<usize, u32>::with_capacity(max_key, max_value);
         assert_eq!(max_key, map.capacity());
     }
     #[test]
     fn compact_size() {
         let value_len = 127_u32;
         let key_len = 32 * 7;
-        let mut map = RawIndexMap::<usize, u32>::with_capacity(key_len, value_len);
+        let mut map = PackedIntArray::<usize, u32>::with_capacity(key_len, value_len);
 
         let max_key = key_len - 1;
         let max_value = value_len - 1;
@@ -392,7 +422,7 @@ mod tests {
     }
     #[test]
     fn mini_size() {
-        let mut map = RawIndexMap::<usize, u32>::with_capacity(0, 0);
+        let mut map = PackedIntArray::<usize, u32>::with_capacity(0, 0);
         assert_eq!(map.indices.0.len(), 0);
 
         assert_eq!(map.set(&32, &0), None);
@@ -401,7 +431,7 @@ mod tests {
         assert_eq!(map.get(&32), None);
         assert_eq!(map.get(&0), None);
 
-        let mut map = RawIndexMap::<usize, u32>::with_capacity(0, u32::MAX);
+        let mut map = PackedIntArray::<usize, u32>::with_capacity(0, u32::MAX);
         assert_eq!(map.indices.0.len(), 0);
 
         assert_eq!(map.set(&32, &0), None);
@@ -410,7 +440,7 @@ mod tests {
         assert_eq!(map.get(&32), None);
         assert_eq!(map.get(&0), None);
 
-        let mut map = RawIndexMap::<usize, u32>::with_capacity(u32::MAX as usize, 0);
+        let mut map = PackedIntArray::<usize, u32>::with_capacity(u32::MAX as usize, 0);
         assert_eq!(map.indices.0.len(), 0);
 
         assert_eq!(map.set(&32, &0), None);
@@ -422,7 +452,7 @@ mod tests {
     #[test]
     fn size() {
         let len = 128;
-        let mut map = RawIndexMap::<usize, u32>::with_capacity(len, u32::MAX);
+        let mut map = PackedIntArray::<usize, u32>::with_capacity(len, u32::MAX);
         assert_eq!(map.indices.0.len(), len);
 
         assert_eq!(map.set(&32, &0xffff_ff00), Some(()));
@@ -434,7 +464,7 @@ mod tests {
     fn expand_size() {
         let max_value = 127_u32;
         let max_key = 32 * 7;
-        let mut map = RawIndexMap::<usize, u32>::with_capacity(max_key, max_value);
+        let mut map = PackedIntArray::<usize, u32>::with_capacity(max_key, max_value);
         assert_eq!(max_key, map.capacity());
 
         assert_eq!(map.set(&12, &100), Some(()));

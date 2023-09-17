@@ -1,3 +1,11 @@
+# 0.6.0
+
+Cleanup README and improve documentation.
+
+Breaking renames:
+- `raw_index_map` → `packed_int_array`, `RawIndexMap` → `PackedIntArray`
+- `bitmultimap` → `bimultimap`, `BitMultimap` → `Bimultimap`
+
 # 0.5.0
 
 Add the `ExtendBlocks` trait and use it for `enable_bit_extending`. This allows

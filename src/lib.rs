@@ -6,8 +6,8 @@
 )]
 #![doc = include_str!("../README.md")]
 
+pub use bimultimap::Bimultimap;
 pub use bitmatrix::BitMatrix;
-pub use bitmultimap::BitMultimap;
 pub use bitset::Bitset;
 #[cfg(feature = "enumset")]
 pub use enum_bitmatrix::EnumBitMatrix;
@@ -18,15 +18,15 @@ pub use index_multimap::IndexMultimap;
 pub use jagged_array::JaggedArray;
 pub use jagged_bitset::JaggedBitset;
 pub use jagged_vec::JaggedVec;
-pub use raw_index_map::RawIndexMap;
+pub use packed_int_array::PackedIntArray;
 pub use sorted_iter::assume::{AssumeSortedByItemExt, AssumeSortedByKeyExt};
 pub use sorted_iter::{
     sorted_iterator::SortedByItem, sorted_pair_iterator::SortedByKey, SortedIterator,
     SortedPairIterator,
 };
 
+pub mod bimultimap;
 pub mod bitmatrix;
-pub mod bitmultimap;
 pub mod bitset;
 #[cfg(feature = "enumset")]
 pub mod enum_bitmatrix;
@@ -37,7 +37,7 @@ pub mod index_multimap;
 pub mod jagged_array;
 pub mod jagged_bitset;
 pub mod jagged_vec;
-pub mod raw_index_map;
+pub mod packed_int_array;
 pub mod sorted;
 
 /// Integer division rounded up.
@@ -70,6 +70,8 @@ impl MostSignificantBit for usize {
 #[allow(clippy::inline_always, clippy::unnecessary_cast)] // I mean, have you _seen_ what is being inlined?
 mod index {
     /// A type that can be cast into an index.
+    ///
+    /// Note that `Index` types are assumed to **NOT** have a significant drop.
     pub trait Index {
         /// Get the index value of this type.
         fn get(&self) -> usize;

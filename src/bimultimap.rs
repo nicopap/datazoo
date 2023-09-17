@@ -1,4 +1,4 @@
-//! A read-only sparse associative array.
+//! A read-only bi-directional multimap.
 
 use std::{collections::BTreeSet, fmt};
 
@@ -6,25 +6,25 @@ use sorted_iter::{assume::AssumeSortedByItemExt, SortedIterator};
 
 use crate::{sorted, BitMatrix};
 
-/// A read-only sparse associative array.
+/// A read-only bi-directional [multimap].
 ///
-/// This is a [multimap] with very good perf for small sets of key and values
+/// This has very good perf for small sets of key and values
 /// that themselves shouldn't take much memory.
 ///
-/// Furthermore, you can not only get all `values` associated with a given `key`,
+/// Furthermore, not only can you get all `values` associated with a given `key`,
 /// but also all `keys` associated with a given `value`.
-/// See [`BitMultimap::get_keys_of`] and [`BitMultimap::get`].
+/// See [`Bimultimap::get_keys_of`] and [`Bimultimap::get`].
 ///
-/// # Representation
+/// # Design
 ///
-/// Consider `K = char` and `V = i64`. A `BitMultimap` stores a limited subset of
+/// Consider `K = char` and `V = i64`. A `Bimultimap` stores a limited subset of
 /// `char` and `i64` and an association list.
 ///
 /// Keys and values are stored in two sorted lists, associations in a [bitset
 /// matrix](BitMatrix).
 ///
 /// #### Keys
-///     
+///
 /// |E|G|H|M|S|T|
 /// |-|-|-|-|-|-|
 ///
@@ -46,7 +46,7 @@ use crate::{sorted, BitMatrix};
 /// ## Example
 ///
 /// ```rust
-/// use datazoo::BitMultimap;
+/// use datazoo::Bimultimap;
 ///
 /// let associations: Vec<(char, i64)> = vec![
 ///     ('E', -1),
@@ -56,7 +56,7 @@ use crate::{sorted, BitMatrix};
 ///     ('S', 342),
 ///     ('T',-5), ('T',-1), ('T',1024),
 /// ];
-/// let map: BitMultimap<char, i64> = associations.into_iter().collect();
+/// let map: Bimultimap<char, i64> = associations.into_iter().collect();
 ///
 /// let assocs = map.get(&'V').copied().collect::<Vec<_>>();
 /// assert_eq!(&assocs, &[]);
@@ -69,7 +69,7 @@ use crate::{sorted, BitMatrix};
 /// ```
 ///
 /// [multimap]: https://en.wikipedia.org/wiki/Multimap
-pub struct BitMultimap<K: Eq + Ord, V: Eq + Ord> {
+pub struct Bimultimap<K: Eq + Ord, V: Eq + Ord> {
     sparse_keys: sorted::Box<K>,
     sparse_values: sorted::Box<V>,
     // TODO(feat): When the nº Modify that have Modify dependencies become very
@@ -83,7 +83,7 @@ pub struct BitMultimap<K: Eq + Ord, V: Eq + Ord> {
     /// Specifically, the column is the index in `sparse_values` of relevant `V`s.
     associations: BitMatrix,
 }
-impl<K: Eq + Ord, V: Eq + Ord> BitMultimap<K, V> {
+impl<K: Eq + Ord, V: Eq + Ord> Bimultimap<K, V> {
     /// Return indices in `sparse_values` of values associated with key of index `row`.
     #[inline]
     fn mapped_associates_of(&self, row: usize) -> impl Iterator<Item = usize> + '_ {
@@ -125,8 +125,8 @@ impl<K: Eq + Ord, V: Eq + Ord> BitMultimap<K, V> {
             .assume_sorted_by_item()
     }
 }
-impl<K: Eq + Ord + Clone, V: Eq + Ord + Clone> FromIterator<(K, V)> for BitMultimap<K, V> {
-    /// Create a [`BitMultimap`] with all associations.
+impl<K: Eq + Ord + Clone, V: Eq + Ord + Clone> FromIterator<(K, V)> for Bimultimap<K, V> {
+    /// Create a [`Bimultimap`] with all associations.
     ///
     /// Note that this takes into account
     fn from_iter<T: IntoIterator<Item = (K, V)>>(iter: T) -> Self {
@@ -153,14 +153,14 @@ impl<K: Eq + Ord + Clone, V: Eq + Ord + Clone> FromIterator<(K, V)> for BitMulti
                 .enable_bit(sparse_values.len(), value_i, key_i)
                 .unwrap();
         }
-        BitMultimap { sparse_keys, sparse_values, associations }
+        Bimultimap { sparse_keys, sparse_values, associations }
     }
 }
 
-impl<K: Eq + Ord + fmt::Debug, V: Eq + Ord + fmt::Debug> fmt::Debug for BitMultimap<K, V> {
+impl<K: Eq + Ord + fmt::Debug, V: Eq + Ord + fmt::Debug> fmt::Debug for Bimultimap<K, V> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let (width, height) = (self.sparse_values.len(), self.sparse_keys.len());
-        f.debug_struct("BitMultimap")
+        f.debug_struct("Bimultimap")
             .field("values", &self.sparse_values)
             .field("keys", &self.sparse_keys)
             .field("map", &self.associations.sextant_display(width, height))

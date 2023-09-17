@@ -5,7 +5,7 @@ use std::{fmt, iter, mem};
 
 use sorted_iter::{assume::AssumeSortedByItemExt, sorted_iterator::SortedByItem};
 
-use crate::{div_ceil, Bitset, RawIndexMap};
+use crate::{div_ceil, Bitset, PackedIntArray};
 
 /// A bit matrix similar to [`BitMatrix`](super::BitMatrix),
 /// but with columns of variable length like [`JaggedVec`](super::JaggedVec).
@@ -38,7 +38,7 @@ use crate::{div_ceil, Bitset, RawIndexMap};
 /// ```
 #[derive(Debug, Default, Clone)]
 pub struct JaggedBitset {
-    ends: RawIndexMap<usize, u32>,
+    ends: PackedIntArray<usize, u32>,
     bits: Bitset<Box<[u32]>>,
 }
 impl JaggedBitset {

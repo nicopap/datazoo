@@ -7,22 +7,21 @@ use crate::{BitMatrix, Index};
 
 /// A [multimap] that goes from an integer to multiple integers.
 ///
-/// This is a 1-to-N mapping, see [`RawIndexMap`] for 1-to-(1|0) mapping.
+/// This is a 1-to-N mapping, see [`PackedIntArray`] for 1-to-(1|0) mapping.
 /// [`JaggedBitset`] is an alternative in case you expect the largest
 /// row to be way larger than the smaller ones.
 ///
-/// The size in bytes of this `struct` is the lowest multiple of 4 over
-/// `max(K) * max(V) / 8`
-///
-/// You'll notice the size is not dependent on the number of values stored
-/// (in fact, [`IndexMultimap`] **does not** store any value). But rather the
-/// values being stored themselves.
-///
 /// It is not recommended to use this data structure if you expect to have
-/// large values in your key/value space.
+/// large values in your key/value space. Or a single very long row and
+/// most other rows empty or wtih very low values.
 ///
-/// [`IndexMultimap`] might be a good solution if you have an index to a small
+/// This data structure might be a good solution if you have an index to a small
 /// array or an incrementing counter.
+///
+/// # Design
+///
+/// This is basically a wrapper around [`BitMatrix`], where `K` is the row index
+/// and `V` are indices in the row bitset.
 ///
 /// # Example
 ///
@@ -49,7 +48,7 @@ use crate::{BitMatrix, Index};
 /// ```
 ///
 /// [multimap]: https://en.wikipedia.org/wiki/Multimap
-/// [`RawIndexMap`]: crate::RawIndexMap
+/// [`PackedIntArray`]: crate::PackedIntArray
 /// [`JaggedBitset`]: crate::JaggedBitset
 #[derive(Debug, Clone)]
 pub struct IndexMultimap<K: Index, V: From<usize>> {
