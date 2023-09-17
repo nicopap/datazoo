@@ -208,13 +208,17 @@ fn disable_range() {
 fn from_all_bits() {
     let bits = blocks();
     let ones = bits.ones_in_range(..);
+    let ones2 = bits.ones();
 
     assert_eq!(Bitset(bits.0.to_vec()), ones.collect());
+    assert_eq!(Bitset(bits.0.to_vec()), ones2.collect());
 
     let bits = Bitset([]);
     let ones = bits.ones_in_range(..);
+    let ones2 = bits.ones();
 
     assert_eq!(Bitset(bits.0.to_vec()), ones.collect());
+    assert_eq!(Bitset(bits.0.to_vec()), ones2.collect());
 }
 #[test]
 fn exact_size_len() {

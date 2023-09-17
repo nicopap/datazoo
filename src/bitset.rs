@@ -361,6 +361,23 @@ impl<B: AsRef<[u32]>> Bitset<B> {
             Some(value & n_mask)
         }
     }
+    /// Same as [`self.ones_in_range(..)`].
+    ///
+    /// # Example
+    /// ```
+    /// # use datazoo::Bitset;
+    /// let bitset = Bitset(&[0xf0f0_00ff, 0xfff0_000f, 0xfff0_0f0f]);
+    ///
+    /// assert_eq!(bitset.ones(), bitset.ones_in_range(..));
+    /// ```
+    ///
+    /// [`self.ones_in_range(..)`]: Bitset::ones_in_range
+    #[inline]
+    pub fn ones(&self) -> Ones {
+        let blocks = self.0.as_ref();
+        let (bitset, remaining_blocks) = blocks.split_first().map_or((0, blocks), |(b, r)| (*b, r));
+        Ones { block_idx: 0, crop: 0, bitset, remaining_blocks }
+    }
     /// Get an iterator over the index of enabled bits within provided `range`.
     #[inline]
     pub fn ones_in_range(&self, range: impl RangeBounds<usize>) -> Ones {

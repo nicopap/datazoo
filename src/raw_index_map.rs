@@ -269,7 +269,7 @@ impl<K: Index, V: From<u32>, Eq> RawIndexMap<K, V, Eq> {
         self.indices
             .disable_range(offset..offset + self.value_width);
         self.indices
-            .extend(Bitset([value]).ones_in_range(..).map(|v| v + offset as u32));
+            .extend(Bitset([value]).ones().map(|v| v + offset as u32));
         Some(())
     }
     /// Set value of `key` to `value`.
@@ -287,7 +287,7 @@ impl<K: Index, V: From<u32>, Eq> RawIndexMap<K, V, Eq> {
         if value_bits > width || value_u32 == self.value_mask()? {
             let additional_bits = value_bits - width;
             let offset = |x: u32| x + x / width * additional_bits;
-            let new_indices = self.indices.ones_in_range(..).map(offset);
+            let new_indices = self.indices.ones().map(offset);
             self.indices = new_indices.collect();
             self.value_width += additional_bits as usize;
         }

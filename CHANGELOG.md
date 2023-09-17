@@ -12,6 +12,8 @@ using the method on arbitrary types.
 Add `JaggedArrayRows: Clone`. `Copy` is not implemented, because `JaggedArrayRows`
 is an iterator, and `Copy` iterators are confusing (it's also hard to implement).
 
+Add `Bitset::ones()`, shortcut for `Bitset::ones_in_range(..)`.
+
 # 0.4.0
 
 Remove `From<usize>` bound on `K` in `RawIndexMap`. It was unneeded, because
