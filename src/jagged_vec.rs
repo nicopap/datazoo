@@ -26,6 +26,14 @@ pub enum Error {
 }
 
 /// A popped row from a [`JaggedVec`].
+///
+/// This implements `Deref[Mut]<Target = [T]>` meaning, you should be able to
+/// use it whenever you can use a slice.
+///
+/// Note that this holds a reference to the `JaggedVec` it was created from,
+/// meaning you cannot use any mutable or immutable methods on the parent
+/// `JaggedVec` until you drop a `PoppedRow`, you may want to use the [`drop`]
+/// std library function.
 pub struct PoppedRow<'a, T> {
     array: ManuallyDrop<Box<[T]>>,
     lifetime: PhantomData<&'a ()>,
@@ -54,6 +62,11 @@ mod popped_row_impls {
 
 /// An extensible (ie: can add more rows) [jagged array].
 ///
+/// **Note**: Unlike [`JaggedArray`](crate::JaggedArray), this implementation
+/// can have 0 rows.
+///
+/// Refer to the `JaggedArray` "Design" section for more details.
+///
 /// [jagged array]: https://en.wikipedia.org/wiki/Jagged_array
 #[derive(PartialEq, Eq, Clone)]
 pub struct JaggedVec<T> {
@@ -76,10 +89,8 @@ impl<T> JaggedVec<T> {
     /// let mut jagged = JaggedVec::empty();
     /// jagged
     ///     .push_row([])
-    ///     .push_row([])
     ///     .push_row([0, 1, 2])
     ///     .push_row([3])
-    ///     .push_row([4, 5, 6])
     ///     .push_row([7, 8])
     ///     .push_row([9])
     ///     .push_row([])
@@ -88,10 +99,8 @@ impl<T> JaggedVec<T> {
     ///     jagged.into_vecs(),
     ///     vec![
     ///         vec![],
-    ///         vec![],
     ///         vec![0, 1, 2],
     ///         vec![3],
-    ///         vec![4, 5, 6],
     ///         vec![7, 8],
     ///         vec![9],
     ///         vec![],
@@ -143,12 +152,14 @@ impl<T> JaggedVec<T> {
         self.data.clear();
         self.ends.clear();
     }
+
     // TODO(feat): pop_elem. But make sure we aren't removing from non-last row
     // in case last row is empty.
+
     /// Remove the last row from the matrix, returning it.
     ///
     /// Note that the returned value holds a reference to the jagged vec, which
-    /// will prevent mutations until it is dropped.
+    /// will prevent using this `JaggedVec` until the returned [`PoppedRow`] is dropped.
     ///
     /// # Example
     /// ```rust

@@ -1,3 +1,19 @@
+# 0.7.0
+
+- Update smallvec dep
+- Use more precise 'thiserror' dep
+- **NEW**: more `JaggedVec` API
+  - `rows`: iterate rows
+  - `empty` & `Default` impl: create an empty `JaggedVec`
+  - `get_row`: non-panicking version of `row`
+  - `extend_last_row`, `push`: Add elements to the last row
+  - `clear`: Remove all rows from the `JaggedVec`
+  - `pop_row`: Remove the last row, returning its content.
+  - `Debug` impl: `JaggedVec` is now represented as a list of list
+- **NEW, BREAKING**: `JaggedVec` (unlike `JaggedArray`) now can have a height of 0
+- **NEW, BREAKING**: `JaggedVec::push_row` now returns `&mut Self` to make it easier
+  to chain calls to build a `JaggedVec`.
+
 # 0.6.0
 
 Cleanup README and improve documentation.

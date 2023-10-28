@@ -30,9 +30,12 @@ pub enum Error {
 ///
 /// # Limitation
 ///
-/// - A `JaggedArray` has at least one row, even if it is an empty row.
+/// - A `JaggedArray` has **at least one row**, even if it is an empty row.
 /// - This is a read-only data structure, Once a `JaggedArray` is built,
 ///   it's impossible to mutate it.
+///
+/// Consider using [`JaggedVec`](crate::JaggedVec) if you want to push and
+/// pop rows from the jagged array.
 ///
 /// # Design
 ///
