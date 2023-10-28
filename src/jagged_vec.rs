@@ -79,6 +79,35 @@ impl<T> Default for JaggedVec<T> {
         Self::empty()
     }
 }
+impl<T> JaggedVec<T> where T: Clone {
+    /// Add `row` at the end of the matrix from a slice. Each element of the slice will be cloned into the container.
+    /// 
+    /// # Example
+    /// ```rust
+    /// use datazoo::JaggedVec;
+    ///
+    /// let mut jagged = JaggedVec::empty();
+    /// let mut source = vec![0, 1, 2, 3];
+    /// jagged
+    ///     .push_slice(&source)
+    ///     .push_slice(&source[0..source.len() - 1]);
+    /// assert_eq!(
+    ///     jagged.into_vecs(),
+    ///     vec![
+    ///         vec![0, 1, 2, 3],
+    ///         vec![0, 1, 2],
+    ///     ],
+    /// );
+    /// ```
+    pub fn push_slice(&mut self, slice: &[T]) -> &mut Self {
+        if !self.fully_popped {
+            self.ends.push(self.data.len() as u32);
+        }
+        self.data.extend_from_slice(slice);
+        self.fully_popped = false;
+        self
+    }
+}
 impl<T> JaggedVec<T> {
     /// Add `row` at the end of the matrix.
     ///
