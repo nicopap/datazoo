@@ -1,0 +1,19 @@
+[package]
+name = "dz_bitflags"
+description = "Pack structs in fixed size integers"
+readme = "README.md"
+keywords = ["bitflags", "packing", "enum"]
+categories = ["data-structures", "encoding"]
+version = "0.6.0"
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+arbitrary-int.workspace = true
+dz_bitflags_macros = { version = "0.6.0", path = "../dz_bitflags_macros", optional = true }
+
+[dev-dependencies]
+pretty_assertions = "1.3"
+

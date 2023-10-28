@@ -1,0 +1,22 @@
+[package]
+name = "datazoo"
+description = "Bitset and jagged array data structures"
+readme = "README.md"
+keywords = ["multimap", "bitset", "jagged-array", "variable-length", "packed"]
+categories = ["data-structures"]
+version = "0.6.0"
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[features]
+default = ["enumset"]
+
+[dependencies]
+enumset = { version = "1.1", features = ["std"], optional = true }
+smallvec = { version = "1.10", optional = true }
+thiserror.workspace = true
+
+[dev-dependencies]
+pretty_assertions = "1.3"

@@ -1,23 +1,17 @@
-[package]
-name = "datazoo"
+[workspace]
+members = ["datazoo", "dz_bitflags", "dz_bitflags_macros"]
+resolver = "2"
+
+[workspace.package]
 authors = ["Nicola Papale"]
-description = "Bitset and jagged array data structures"
-license = "MIT OR Apache-2.0 OR Zlib"
-readme = "README.md"
-keywords = ["multimap", "bitset", "jagged-array", "variable-length", "packed"]
-categories = ["data-structures"]
-repository = "https://github.com/nicopap/datazoo"
-version = "0.6.0"
 edition = "2021"
+license = "MIT OR Apache-2.0 OR Zlib"
+repository = "https://github.com/nicopap/datazoo"
 
-[features]
-default = ["enumset"]
-
-[dependencies]
-enumset = { version = "1.1", features = ["std"], optional = true }
+[workspace.dependencies]
+arbitrary-int = "1.2.6"
+proc-macro2 = "1.0.66"
+quote = "1.0.32"
 sorted-iter = "0.1.11"
-thiserror = "1"
-smallvec = { version = "1.10", optional = true }
-
-[dev-dependencies]
-pretty_assertions = "1.3"
+syn = { version = "2.0.28", default-features = false, features = ["full", "parsing", "proc-macro", "printing", "clone-impls"] }
+thiserror = "1.0.44"
