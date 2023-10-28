@@ -7,7 +7,7 @@ readme = "README.md"
 keywords = ["multimap", "bitset", "jagged-array", "variable-length", "packed"]
 categories = ["data-structures"]
 repository = "https://github.com/nicopap/datazoo"
-version = "0.6.0"
+version = "0.7.0"
 edition = "2021"
 
 [features]
